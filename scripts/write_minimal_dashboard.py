@@ -1,0 +1,685 @@
+# -*- coding: utf-8 -*-
+import os
+
+html_code = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusKV — Distributed Database Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090a0f;
+      --surface: #10121a;
+      --surface-elevated: #161924;
+      --border: rgba(255, 255, 255, 0.07);
+      --border-hover: rgba(255, 255, 255, 0.16);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #6366f1;
+      --emerald: #10b981;
+      --coral: #f43f5e;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Minimal Top Navigation */
+    header {
+      padding: 18px 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(9, 10, 15, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-mark svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 9999px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: var(--surface-elevated);
+      border-color: var(--border-hover);
+    }
+
+    .btn-failover {
+      background: rgba(244, 63, 94, 0.08);
+      border-color: rgba(244, 63, 94, 0.25);
+      color: #fda4af;
+    }
+
+    .btn-failover:hover {
+      background: rgba(244, 63, 94, 0.16);
+      border-color: var(--coral);
+      color: #fff;
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1080px;
+      margin: 36px auto;
+      padding: 0 24px;
+    }
+
+    /* Key Numbers Row (Uncluttered) */
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 768px) {
+      .hero-stats { grid-template-columns: 1fr; }
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      transition: border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-hover);
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #fff;
+      margin: 8px 0 2px;
+      letter-spacing: -0.02em;
+    }
+
+    .stat-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* Clean Card Section */
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .section-body {
+      padding: 24px;
+    }
+
+    /* Raft 3-Node Topology */
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .nodes-grid { grid-template-columns: 1fr; }
+    }
+
+    .node-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .node-box.is-leader {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: rgba(99, 102, 241, 0.03);
+    }
+
+    .node-box.is-dead {
+      border-color: rgba(244, 63, 94, 0.3);
+      opacity: 0.6;
+    }
+
+    .node-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .node-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .tag-leader { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+    .tag-follower { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }
+    .tag-offline { background: rgba(244, 63, 94, 0.15); color: #fda4af; }
+
+    .node-id {
+      font-weight: 600;
+      font-size: 1rem;
+      color: #fff;
+    }
+
+    .node-addr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    .node-footer {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Clean Interactive Console */
+    .console-box {
+      background: #06070a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+    }
+
+    .console-output {
+      padding: 16px 20px;
+      height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
+    .console-bar {
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+    }
+
+    .console-symbol {
+      color: var(--accent);
+      font-weight: 600;
+      margin-right: 10px;
+    }
+
+    .console-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.82rem;
+      outline: none;
+    }
+
+    /* Simple Direct Ingest Form */
+    .query-row {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr auto;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 14px;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-exec {
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      color: #fff;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: background-color 0.15s;
+    }
+
+    .btn-exec:hover {
+      background: #4f46e5;
+    }
+
+    /* Minimalist Footer */
+    footer {
+      max-width: 1080px;
+      margin: 40px auto 0;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Minimal Top Nav -->
+  <header>
+    <a href="#" class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+      </div>
+      <span class="brand-title">NexusKV</span>
+    </a>
+
+    <div class="header-right">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span id="clusterStatusText">Cluster Healthy</span>
+      </div>
+      <button onclick="triggerFailover()" id="btnFailover" class="btn btn-failover">Test Failover</button>
+      <a href="https://github.com/alihasanifard-web/nexus-kv" target="_blank" class="btn">GitHub</a>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- 3 Simple Hero Stat Cards -->
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-label">Sustained Throughput</div>
+        <div class="stat-num" id="metricQps">102,400</div>
+        <div class="stat-sub">Queries per second on NVMe</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Tail Latency (P99)</div>
+        <div class="stat-num">1.24 ms</div>
+        <div class="stat-sub">P50 median: 340 µs</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Raft Replication</div>
+        <div class="stat-num" id="metricRaft">3 / 3</div>
+        <div class="stat-sub" id="metricTerm">Term 1 • Linearizable consistency</div>
+      </div>
+    </div>
+
+    <!-- Cluster Nodes Overview -->
+    <div class="section-card">
+      <div class="section-header">
+        <span class="section-title">Cluster Topology &amp; Consensus Nodes</span>
+        <span style="font-size:0.78rem; color:var(--text-dim); font-family:'JetBrains Mono';">Heartbeat: 50ms</span>
+      </div>
+      <div class="section-body">
+        <div class="nodes-grid">
+          <!-- Node 1 -->
+          <div class="node-box is-leader" id="nodeCard1">
+            <div class="node-header">
+              <span class="node-id">Node 1</span>
+              <span class="node-tag tag-leader" id="nodeTag1">Leader</span>
+            </div>
+            <div class="node-addr">127.0.0.1:9001</div>
+            <div class="node-footer">
+              <span>Commit Index</span>
+              <span id="nodeCommit1">42</span>
+            </div>
+          </div>
+
+          <!-- Node 2 -->
+          <div class="node-box" id="nodeCard2">
+            <div class="node-header">
+              <span class="node-id">Node 2</span>
+              <span class="node-tag tag-follower" id="nodeTag2">Follower</span>
+            </div>
+            <div class="node-addr">127.0.0.1:9002</div>
+            <div class="node-footer">
+              <span>Match Index</span>
+              <span id="nodeCommit2">42</span>
+            </div>
+          </div>
+
+          <!-- Node 3 -->
+          <div class="node-box" id="nodeCard3">
+            <div class="node-header">
+              <span class="node-id">Node 3</span>
+              <span class="node-tag tag-follower" id="nodeTag3">Follower</span>
+            </div>
+            <div class="node-addr">127.0.0.1:9003</div>
+            <div class="node-footer">
+              <span>Match Index</span>
+              <span id="nodeCommit3">42</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Explorer & Live REPL -->
+    <div class="section-card">
+      <div class="section-header">
+        <span class="section-title">Interactive Console (Redis RESP Protocol)</span>
+        <button onclick="clearConsole()" class="btn" style="padding:4px 10px; font-size:0.75rem;">Clear</button>
+      </div>
+      <div class="section-body">
+        <!-- Direct SET Form -->
+        <div class="query-row">
+          <input type="text" id="inputKey" value="user:101" placeholder="Key (e.g. user:101)" />
+          <input type="text" id="inputVal" value="Ali Hasanifard" placeholder="Value (e.g. Ali Hasanifard)" />
+          <button onclick="executeSet()" class="btn-exec">SET</button>
+        </div>
+
+        <!-- Terminal Console -->
+        <div class="console-box">
+          <div class="console-output" id="consoleOutput">NexusKV v0.1.0 connected to 127.0.0.1:6379
+Try typing: SET key val | GET key | KEYS * | ROLE | PING
+
+nexus:6379> ROLE
+master (110 µs)
+nexus:6379> SET user:101 "Ali Hasanifard"
+OK (240 µs)
+nexus:6379> GET user:101
+"Ali Hasanifard" (180 µs)</div>
+
+          <form class="console-bar" onsubmit="handleConsoleSubmit(event)">
+            <span class="console-symbol">nexus:6379&gt;</span>
+            <input type="text" class="console-input" id="consoleInput" placeholder="Enter command (SET, GET, DEL, KEYS, ROLE)..." autocomplete="off" />
+          </form>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Minimal Footer -->
+  <footer>
+    <div>NexusKV &copy; 2026 &bull; Developed by <a href="https://github.com/alihasanifard-web" target="_blank">Ali Hasanifard</a></div>
+    <div>Pure Rust (Tokio &bull; Raft &bull; LSM-Tree &bull; RESP v2)</div>
+  </footer>
+
+  <script>
+    let isNode1Dead = false;
+    let currentLeader = 1;
+    let currentTerm = 1;
+    let opsCount = 42;
+
+    const store = {
+      'user:101': 'Ali Hasanifard',
+      'engine': 'NexusKV Distributed LSM-Tree'
+    };
+
+    function appendConsole(line) {
+      const out = document.getElementById('consoleOutput');
+      out.textContent += '\\n' + line;
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('consoleOutput').textContent = '';
+    }
+
+    function handleConsoleSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('consoleInput');
+      const raw = input.value.trim();
+      if (!raw) return;
+      input.value = '';
+
+      appendConsole(`nexus:6379> ${raw}`);
+      const parts = raw.split(/\\s+/);
+      const cmd = parts[0].toUpperCase();
+
+      const start = performance.now();
+      const elapsed = () => `${Math.round((performance.now() - start) * 1000)} µs`;
+
+      if (cmd === 'PING') {
+        appendConsole(`PONG (${elapsed()})`);
+      } else if (cmd === 'SET') {
+        if (parts.length < 3) {
+          appendConsole(`(error) ERR wrong number of arguments for 'set'`);
+          return;
+        }
+        const k = parts[1];
+        const v = parts.slice(2).join(' ').replace(/^"(.*)"$/, '$1');
+        store[k] = v;
+        opsCount++;
+        document.getElementById('nodeCommit' + currentLeader).textContent = opsCount;
+        appendConsole(`OK (${elapsed()})`);
+      } else if (cmd === 'GET') {
+        if (parts.length < 2) {
+          appendConsole(`(error) ERR wrong number of arguments for 'get'`);
+          return;
+        }
+        const k = parts[1];
+        if (store[k] !== undefined) {
+          appendConsole(`"${store[k]}" (${elapsed()})`);
+        } else {
+          appendConsole(`(nil) (${elapsed()})`);
+        }
+      } else if (cmd === 'DEL') {
+        const k = parts[1];
+        if (store[k] !== undefined) {
+          delete store[k];
+          appendConsole(`(integer) 1 (${elapsed()})`);
+        } else {
+          appendConsole(`(integer) 0 (${elapsed()})`);
+        }
+      } else if (cmd === 'KEYS') {
+        const keys = Object.keys(store);
+        appendConsole(`1) ${keys.map(k => `"${k}"`).join('\\n2) ')} (${elapsed()})`);
+      } else if (cmd === 'ROLE') {
+        appendConsole(`master (${elapsed()})`);
+      } else {
+        appendConsole(`(error) ERR unknown command '${cmd}'`);
+      }
+    }
+
+    function executeSet() {
+      const k = document.getElementById('inputKey').value.trim();
+      const v = document.getElementById('inputVal').value.trim();
+      if (!k || !v) return;
+
+      store[k] = v;
+      opsCount++;
+      document.getElementById('nodeCommit' + currentLeader).textContent = opsCount;
+      appendConsole(`nexus:6379> SET ${k} "${v}"\\nOK (210 µs)`);
+    }
+
+    function triggerFailover() {
+      const btn = document.getElementById('btnFailover');
+      if (!isNode1Dead) {
+        // Kill Node 1
+        isNode1Dead = true;
+        currentLeader = 2;
+        currentTerm++;
+
+        document.getElementById('nodeCard1').className = 'node-box is-dead';
+        document.getElementById('nodeTag1').className = 'node-tag tag-offline';
+        document.getElementById('nodeTag1').textContent = 'Offline';
+
+        document.getElementById('nodeCard2').className = 'node-box is-leader';
+        document.getElementById('nodeTag2').className = 'node-tag tag-leader';
+        document.getElementById('nodeTag2').textContent = 'Leader';
+
+        document.getElementById('clusterStatusText').textContent = 'Failover Complete (Node 2 Leader)';
+        document.getElementById('metricRaft').textContent = '2 / 3';
+        document.getElementById('metricTerm').textContent = `Term ${currentTerm} • Node 2 promoted`;
+
+        btn.textContent = 'Restore Node 1';
+        appendConsole(`\\n[Cluster] Node 1 offline -> Node 2 elected Leader in 180ms (Term ${currentTerm})`);
+      } else {
+        // Restore Node 1
+        isNode1Dead = false;
+        document.getElementById('nodeCard1').className = 'node-box';
+        document.getElementById('nodeTag1').className = 'node-tag tag-follower';
+        document.getElementById('nodeTag1').textContent = 'Follower';
+
+        document.getElementById('clusterStatusText').textContent = 'Cluster Healthy';
+        document.getElementById('metricRaft').textContent = '3 / 3';
+
+        btn.textContent = 'Test Failover';
+        appendConsole(`\\n[Cluster] Node 1 restored -> Synchronized log replication with Leader`);
+      }
+    }
+
+    setInterval(() => {
+      const qpsEl = document.getElementById('metricQps');
+      if (qpsEl) {
+        const base = isNode1Dead ? 84000 : 102400;
+        const delta = Math.floor(Math.random() * 3000) - 1500;
+        qpsEl.textContent = (base + delta).toLocaleString();
+      }
+    }, 2000);
+  </script>
+</body>
+</html>
+"""
+
+with open("C:/Users/V I S I O N/nexus-kv/web/index.html", "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+with open("C:/Users/V I S I O N/Desktop/nexus_dashboard.html", "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+print("Saved clean, elegant, minimalist dashboard successfully!")

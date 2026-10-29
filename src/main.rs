@@ -15,19 +15,19 @@ use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    print_banner();
-
     let args: Vec<String> = env::args().collect();
     let port: u16 = args.get(1).and_then(|p| p.parse().ok()).unwrap_or(6379);
     let node_id: u64 = args.get(2).and_then(|id| id.parse().ok()).unwrap_or(1);
     let data_dir = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(format!("./data/node_{}", node_id)));
 
-    println!("  ⚙ Node ID:      {}", node_id);
-    println!("  ⚙ Listen Port:  {}", port);
-    println!("  ⚙ Data Path:    {}", data_dir.display());
-    println!("  ⚙ Protocol:     Redis RESP v2/v3 Compatible");
-    println!("  ⚙ Storage:      LSM-Tree with Bloom Filters & WAL");
-    println!("  ⚙ Consensus:    Distributed Raft Protocol\n");
+    println!("\n  \x1B[1;37mNexusKV Server v0.1.0\x1B[0m \x1B[90m(x86_64-pc-windows-gnu)\x1B[0m");
+    println!("  \x1B[90mDistributed Raft Consensus & LSM-Tree Engine\x1B[0m");
+    println!("  \x1B[90m--------------------------------------------\x1B[0m");
+    println!("  • Node ID:    \x1B[36m{}\x1B[0m", node_id);
+    println!("  • Listen:     \x1B[36m0.0.0.0:{}\x1B[0m \x1B[90m(Redis RESP)\x1B[0m", port);
+    println!("  • Storage:    \x1B[36m{}\x1B[0m", data_dir.display());
+    println!("  • Architect:  \x1B[37mAli Hasanifard\x1B[0m");
+    println!("  \x1B[90m--------------------------------------------\x1B[0m");
 
     let lsm_config = LsmConfig {
         dir: data_dir,
@@ -40,8 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine.raft.become_leader();
 
     let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    println!("  ✔ NexusKV Server running on 0.0.0.0:{}", port);
-    println!("  ✔ Ready to accept Redis clients (redis-cli -p {})\n", port);
+    println!("  \x1B[32m✔ Ready to accept client connections\x1B[0m\n");
 
     loop {
         let (socket, peer_addr) = listener.accept().await?;
@@ -91,20 +90,4 @@ async fn handle_client(mut socket: TcpStream, _addr: std::net::SocketAddr, engin
             }
         }
     }
-}
-
-fn print_banner() {
-    println!("\x1B[36m");
-    println!(r#"
-    ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗██╗  ██╗██╗   ██╗
-    ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝██║ ██╔╝██║   ██║
-    ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗█████╔╝ ██║   ██║
-    ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║██╔═██╗ ╚██╗ ██╔╝
-    ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║██║  ██╗ ╚████╔╝ 
-    ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝  ╚═══╝  
-    "#);
-    println!("\x1B[0m");
-    println!("  High-Performance Distributed Raft Key-Value Storage Engine");
-    println!("  Architect: Ali Hasanifard (علی حسنی فرد) | Open Source MIT");
-    println!("  -------------------------------------------------------------");
 }

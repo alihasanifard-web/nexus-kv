@@ -17,32 +17,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let host = get_arg_str(&args, "-h", "127.0.0.1");
     let port = get_arg_u16(&args, "-p", 6379);
 
-    println!("\x1B[36m");
-    println!(r#"
-    ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗      ██████╗██╗     ██╗
-    ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝     ██╔════╝██║     ██║
-    ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗     ██║     ██║     ██║
-    ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║     ██║     ██║     ██║
-    ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║     ╚██████╗███████╗██║
-    ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝      ╚═════╝╚══════╝╚═╝
-    "#);
-    println!("\x1B[0m");
-    println!("  NexusKV Interactive Client Console v0.1.0");
-    println!("  Connecting to {}:{}...\n", host, port);
+    println!("\n  \x1B[1;37mNexusKV CLI v0.1.0\x1B[0m \x1B[90m({}:{})\x1B[0m", host, port);
+    println!("  \x1B[90mType 'help' for commands, 'exit' to quit.\x1B[0m\n");
 
     let mut stream = match TcpStream::connect(format!("{}:{}", host, port)).await {
-        Ok(s) => {
-            println!("  \x1B[32m✔ Connected to NexusKV cluster node successfully!\x1B[0m");
-            println!("  Type 'help' for command reference or 'exit' to quit.\n");
-            s
-        }
+        Ok(s) => s,
         Err(e) => {
-            eprintln!("  \x1B[31m✖ Failed to connect to {}:{}: {}\x1B[0m", host, port, e);
+            eprintln!("  \x1B[31m✖ Could not connect to {}:{}: {}\x1B[0m\n", host, port, e);
             std::process::exit(1);
         }
     };
 
-    let prompt = format!("\x1B[1;36mnexus {}:{}\x1B[0m> ", host, port);
+    let prompt = format!("\x1B[1;36mnexus:{}\x1B[0m> ", port);
     let mut read_buf = BytesMut::with_capacity(4096);
     let mut scratch = [0u8; 1024];
 
