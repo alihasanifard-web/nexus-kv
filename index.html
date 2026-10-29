@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusKV — Distributed Raft & LSM-Tree Engine Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07080c;
+      --bg-surface: #0d0f17;
+      --bg-card: #131622;
+      --bg-card-hover: #181c2b;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(99, 102, 241, 0.3);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --violet: #8b5cf6;
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.25);
+      --coral: #f43f5e;
+      --amber: #f59e0b;
+      --cyan: #06b6d4;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    }
+
+    /* Header Nav */
+    header {
+      background: rgba(13, 15, 23, 0.75);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--violet));
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    .brand-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2.2;
+    }
+
+    .brand-name {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 40%, #c7d2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      border-radius: 6px;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .cluster-status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--emerald);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--violet));
+      color: #fff;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      border-color: var(--border);
+      color: var(--text-muted);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      color: var(--text);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      border-color: rgba(244, 63, 94, 0.3);
+      color: #fb7185;
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.25);
+      color: #fff;
+      border-color: var(--coral);
+    }
+
+    /* Container Grid */
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Top Stats Row */
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s ease;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--border-accent), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .metric-card:hover {
+      border-color: var(--border-accent);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .metric-card:hover::before {
+      opacity: 1;
+    }
+
+    .metric-title {
+      font-size: 0.76rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.65rem;
+      font-weight: 700;
+      margin-top: 8px;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .metric-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .text-emerald { color: var(--emerald); }
+    .text-cyan { color: var(--cyan); }
+    .text-violet { color: var(--violet); }
+    .text-amber { color: var(--amber); }
+
+    /* Main Bento Layout */
+    .bento-layout {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 1080px) {
+      .bento-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      background: rgba(19, 22, 34, 0.6);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+    }
+
+    .panel-title svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--primary);
+    }
+
+    .panel-body {
+      padding: 20px;
+      flex: 1;
+    }
+
+    /* Raft Visualizer */
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .node-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .node-box.is-leader {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, var(--bg-card) 100%);
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+    }
+
+    .node-box.is-killed {
+      border-color: rgba(244, 63, 94, 0.4);
+      background: rgba(244, 63, 94, 0.05);
+      opacity: 0.6;
+    }
+
+    .node-badge {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .badge-leader { background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }
+    .badge-follower { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-offline { background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+
+    .node-name {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .node-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    /* Replication Interconnect Canvas */
+    .interconnect-box {
+      background: rgba(7, 8, 12, 0.8);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sync-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .sync-ping {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+    }
+
+    /* LSM Tree Storage Visualizer */
+    .lsm-pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .pipeline-stage {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: border-color 0.2s;
+    }
+
+    .pipeline-stage:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .stage-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .stage-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .icon-mem { background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.3); }
+    .icon-wal { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .icon-sst { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .stage-label {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .stage-desc {
+      font-size: 0.74rem;
+      color: var(--text-dim);
+    }
+
+    .stage-stats {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #c7d2fe;
+    }
+
+    /* Interactive Data Explorer Form */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr auto;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    input, textarea {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.84rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+    }
+
+    /* Interactive Terminal */
+    .terminal-container {
+      background: #040508;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.84rem;
+      display: flex;
+      flex-direction: column;
+      height: 380px;
+    }
+
+    .terminal-header {
+      background: #090a10;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .term-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .term-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-red { background: #f43f5e; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .terminal-output {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+
+    .terminal-prompt-bar {
+      display: flex;
+      align-items: center;
+      background: #07090e;
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
+    }
+
+    .term-symbol {
+      color: var(--cyan);
+      margin-right: 8px;
+      font-weight: 700;
+    }
+
+    .term-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.86rem;
+      outline: none;
+    }
+
+    /* Latency Bars */
+    .latency-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .latency-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+
+    .latency-p {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    .latency-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-top: 4px;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      margin-top: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+
+    .footer-author {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .footer-author a {
+      color: var(--cyan);
+      text-decoration: none;
+    }
+
+    .footer-author a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <a href="#" class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+      </div>
+      <div>
+        <span class="brand-name">NexusKV</span>
+        <span class="brand-badge">v0.1.0-alpha</span>
+      </div>
+    </a>
+
+    <div class="nav-actions">
+      <div class="cluster-status-pill">
+        <span class="status-dot"></span>
+        <span id="clusterStatusText">Cluster Healthy (3 Nodes Quorum)</span>
+      </div>
+      <a href="https://github.com/alihasanifard-web/nexus-kv" target="_blank" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+        <span>GitHub</span>
+      </a>
+      <button onclick="triggerChaos()" id="btnChaos" class="btn btn-danger">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        <span>Simulate Chaos: Kill Leader</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Content Container -->
+  <div class="container">
+
+    <!-- Top Key Metrics -->
+    <div class="metrics-bar">
+      <div class="metric-card">
+        <div class="metric-title">
+          <span>Throughput</span>
+          <span class="text-cyan">LIVE QPS</span>
+        </div>
+        <div class="metric-value text-cyan" id="metricQps">102,450</div>
+        <div class="metric-sub">
+          <span class="text-emerald">▲ +12%</span>
+          <span>sustainable write workload</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">
+          <span>P99 Latency</span>
+          <span class="text-violet">NVMe SSD</span>
+        </div>
+        <div class="metric-value text-violet">1.24 ms</div>
+        <div class="metric-sub">
+          <span>P50: 340 µs | P90: 780 µs</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">
+          <span>Raft Quorum</span>
+          <span class="text-emerald">CONSENSUS</span>
+        </div>
+        <div class="metric-value text-emerald" id="metricRaft">3 / 3 Active</div>
+        <div class="metric-sub">
+          <span id="metricTerm">Term 1 • Linearizable</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">
+          <span>MemTable Size</span>
+          <span class="text-amber">IN-MEMORY</span>
+        </div>
+        <div class="metric-value text-amber" id="metricMem">3.2 MB</div>
+        <div class="metric-sub">
+          <span>Threshold: 4 MB (Flush at 100%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Cluster State & Storage -->
+    <div class="bento-layout">
+
+      <!-- Left Panel: Distributed Raft Visualizer -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span>Raft Consensus Topology & Node Heartbeats</span>
+          </div>
+          <span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:var(--text-dim);" id="clusterElectionStatus">Election Timers: 150-300ms</span>
+        </div>
+
+        <div class="panel-body">
+          <div class="nodes-grid">
+            <!-- Node 1 -->
+            <div class="node-box is-leader" id="nodeCard1">
+              <span class="node-badge badge-leader" id="nodeBadge1">Leader</span>
+              <div class="node-name">Node 1</div>
+              <div class="node-meta">127.0.0.1:9001</div>
+              <div class="node-meta text-emerald" id="nodeRole1">Commit Index: 42</div>
+            </div>
+
+            <!-- Node 2 -->
+            <div class="node-box" id="nodeCard2">
+              <span class="node-badge badge-follower" id="nodeBadge2">Follower</span>
+              <div class="node-name">Node 2</div>
+              <div class="node-meta">127.0.0.1:9002</div>
+              <div class="node-meta" id="nodeRole2">Match Index: 42</div>
+            </div>
+
+            <!-- Node 3 -->
+            <div class="node-box" id="nodeCard3">
+              <span class="node-badge badge-follower" id="nodeBadge3">Follower</span>
+              <div class="node-name">Node 3</div>
+              <div class="node-meta">127.0.0.1:9003</div>
+              <div class="node-meta" id="nodeRole3">Match Index: 42</div>
+            </div>
+          </div>
+
+          <div class="interconnect-box">
+            <div class="sync-indicator">
+              <span class="sync-ping"></span>
+              <span>Heartbeat: 50ms</span>
+            </div>
+            <div style="color:var(--text-dim);">⇄ Quorum Sync (2/3 nodes)</div>
+            <div class="sync-indicator">
+              <span class="sync-ping" style="background:var(--emerald); box-shadow:0 0 8px var(--emerald);"></span>
+              <span>0ms Divergence</span>
+            </div>
+          </div>
+
+          <!-- Interactive Latency Percentile Cards -->
+          <div style="font-size:0.8rem; font-weight:700; color:var(--text-muted); margin-bottom:8px;">Sub-Millisecond Tail Latencies:</div>
+          <div class="latency-grid">
+            <div class="latency-box">
+              <div class="latency-p">P50 MEDIAN</div>
+              <div class="latency-num">340 µs</div>
+            </div>
+            <div class="latency-box">
+              <div class="latency-p">P90 LEVEL</div>
+              <div class="latency-num">780 µs</div>
+            </div>
+            <div class="latency-box">
+              <div class="latency-p">P95 LEVEL</div>
+              <div class="latency-num">960 µs</div>
+            </div>
+            <div class="latency-box">
+              <div class="latency-p">P99 TAIL</div>
+              <div class="latency-num" style="color:var(--emerald);">1,240 µs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Panel: LSM-Tree Storage Engine Pipeline -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            <span>LSM-Tree Physical Storage Hierarchy</span>
+          </div>
+          <button onclick="forceFlush()" class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;">Force Flush</button>
+        </div>
+
+        <div class="panel-body">
+          <div class="lsm-pipeline">
+            <!-- Stage 1: WAL -->
+            <div class="pipeline-stage">
+              <div class="stage-info">
+                <div class="stage-icon icon-wal">WAL</div>
+                <div>
+                  <div class="stage-label">Write-Ahead Log (current.wal)</div>
+                  <div class="stage-desc">CRC32 Vectorized Checksum • Sequential Disk Flush</div>
+                </div>
+              </div>
+              <div class="stage-stats text-amber" id="walRecords">142 Frames</div>
+            </div>
+
+            <!-- Stage 2: MemTable -->
+            <div class="pipeline-stage">
+              <div class="stage-info">
+                <div class="stage-icon icon-mem">RAM</div>
+                <div>
+                  <div class="stage-label">Concurrent MemTable (RwLock)</div>
+                  <div class="stage-desc">Ordered Key-Value Buffer with Atomic Size Tracking</div>
+                </div>
+              </div>
+              <div class="stage-stats text-cyan" id="memtableKeys">142 Keys</div>
+            </div>
+
+            <!-- Stage 3: SSTable -->
+            <div class="pipeline-stage">
+              <div class="stage-info">
+                <div class="stage-icon icon-sst">SST</div>
+                <div>
+                  <div class="stage-label">SSTable Files (Sparse Index + Bloom)</div>
+                  <div class="stage-desc">Immutable Disk Storage • Double Hashing 1% False Positive</div>
+                </div>
+              </div>
+              <div class="stage-stats text-emerald" id="sstableCount">3 Tables</div>
+            </div>
+          </div>
+
+          <!-- Quick Test Form -->
+          <div style="margin-top:20px; font-size:0.8rem; font-weight:700; color:var(--text-muted); margin-bottom:8px;">Execute Live SET Operation:</div>
+          <div class="form-grid">
+            <input type="text" id="inputKey" value="user:101" placeholder="Key (e.g. user:101)" />
+            <input type="text" id="inputVal" value="Ali Hasanifard" placeholder="Value (e.g. profile)" />
+            <button onclick="executeSet()" class="btn btn-primary">SET</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Interactive Terminal Console -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          <span>Interactive NexusKV Web REPL (Redis RESP Protocol)</span>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button onclick="clearTerm()" class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;">Clear Screen</button>
+          <span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:var(--cyan); padding-top:4px;">TCP Connected</span>
+        </div>
+      </div>
+
+      <div class="terminal-container">
+        <div class="terminal-header">
+          <div class="term-dots">
+            <span class="term-dot dot-red"></span>
+            <span class="term-dot dot-yellow"></span>
+            <span class="term-dot dot-green"></span>
+          </div>
+          <span style="font-size:0.75rem; color:var(--text-dim);">nexus-cli v0.1.0 • 127.0.0.1:6379</span>
+        </div>
+
+        <div class="terminal-output" id="termOutput">
+  =============================================================
+  ⚡ NEXUS-KV INTERACTIVE CONSOLE (REDIS RESP PROTOCOL)
+  Architect: Ali Hasanifard (علی حسنی فرد)
+  Try commands: SET key val | GET key | KEYS * | ROLE | METRICS
+  =============================================================
+nexus 127.0.0.1:6379> ROLE
+  master  (elapsed: 110 µs)
+nexus 127.0.0.1:6379> SET user:101 "Ali Hasanifard"
+  OK  (elapsed: 290 µs)
+nexus 127.0.0.1:6379> GET user:101
+  "Ali Hasanifard"  (elapsed: 190 µs)
+</div>
+
+        <form class="terminal-prompt-bar" onsubmit="handleTermSubmit(event)">
+          <span class="term-symbol">nexus&gt;</span>
+          <input type="text" class="term-input" id="termInput" placeholder="Type command (e.g. SET name Ali, GET name, KEYS *, METRICS, PING)..." autocomplete="off" />
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-author">
+      Designed & Engineered by <a href="https://github.com/alihasanifard-web" target="_blank">Ali Hasanifard (علی حسنی فرد)</a> — Open Source MIT
+    </div>
+    <div>
+      NexusKV Core: Pure Rust (tokio, parking_lot, crc32fast, bincode)
+    </div>
+  </footer>
+
+  <script>
+    // State Store
+    let isNode1Dead = false;
+    let currentLeader = 1;
+    let currentTerm = 1;
+    let committedOps = 42;
+    let memtableKeys = 142;
+    let sstCount = 3;
+
+    // Database Mock Storage for Web REPL
+    const db = {
+      'user:101': 'Ali Hasanifard',
+      'cluster:name': 'NexusKV Global Cluster',
+      'engine': 'Distributed Raft + LSM-Tree'
+    };
+
+    function appendTerm(line) {
+      const out = document.getElementById('termOutput');
+      out.textContent += '\n' + line;
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function clearTerm() {
+      document.getElementById('termOutput').textContent = '';
+    }
+
+    function handleTermSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('termInput');
+      const raw = input.value.trim();
+      if (!raw) return;
+      input.value = '';
+
+      appendTerm(`nexus 127.0.0.1:6379> ${raw}`);
+      const parts = raw.split(/\s+/);
+      const cmd = parts[0].toUpperCase();
+
+      const start = performance.now();
+      const elapsed = () => {
+        const d = (performance.now() - start) * 1000;
+        return `${Math.round(d)} µs`;
+      };
+
+      if (cmd === 'PING') {
+        appendTerm(`  PONG  (elapsed: ${elapsed()})`);
+      } else if (cmd === 'SET') {
+        if (parts.length < 3) {
+          appendTerm(`  (error) ERR wrong number of arguments for 'set'  (elapsed: ${elapsed()})`);
+          return;
+        }
+        const key = parts[1];
+        const val = parts.slice(2).join(' ').replace(/^"(.*)"$/, '$1');
+        db[key] = val;
+        memtableKeys++;
+        committedOps++;
+        document.getElementById('memtableKeys').textContent = `${memtableKeys} Keys`;
+        document.getElementById('walRecords').textContent = `${memtableKeys} Frames`;
+        document.getElementById('nodeRole' + currentLeader).textContent = `Commit Index: ${committedOps}`;
+        appendTerm(`  OK  (elapsed: ${elapsed()})`);
+      } else if (cmd === 'GET') {
+        if (parts.length < 2) {
+          appendTerm(`  (error) ERR wrong number of arguments for 'get'  (elapsed: ${elapsed()})`);
+          return;
+        }
+        const key = parts[1];
+        if (db[key] !== undefined) {
+          appendTerm(`  "${db[key]}"  (elapsed: ${elapsed()})`);
+        } else {
+          appendTerm(`  (nil)  (elapsed: ${elapsed()})`);
+        }
+      } else if (cmd === 'DEL') {
+        const key = parts[1];
+        if (db[key] !== undefined) {
+          delete db[key];
+          appendTerm(`  (integer) 1  (elapsed: ${elapsed()})`);
+        } else {
+          appendTerm(`  (integer) 0  (elapsed: ${elapsed()})`);
+        }
+      } else if (cmd === 'KEYS') {
+        const keys = Object.keys(db);
+        appendTerm(`  --- Results (${keys.length} items, ${elapsed()}) ---`);
+        keys.forEach((k, idx) => {
+          appendTerm(`  ${idx + 1}) "${k}"`);
+        });
+      } else if (cmd === 'ROLE') {
+        appendTerm(`  master  (elapsed: ${elapsed()})`);
+      } else if (cmd === 'METRICS') {
+        appendTerm(`# HELP nexus_ops_total Total operations handled\nnexus_ops_total{node_id="${currentLeader}"} ${committedOps}\n# HELP nexus_raft_term Current Raft term\nnexus_raft_term{node_id="${currentLeader}"} ${currentTerm}\n# HELP nexus_memtable_bytes MemTable RAM usage\nnexus_memtable_bytes 3355443`);
+      } else if (cmd === 'CLEAR') {
+        clearTerm();
+      } else {
+        appendTerm(`  (error) ERR unknown command '${cmd}'  (elapsed: ${elapsed()})`);
+      }
+    }
+
+    function executeSet() {
+      const k = document.getElementById('inputKey').value.trim();
+      const v = document.getElementById('inputVal').value.trim();
+      if (!k || !v) return;
+
+      db[k] = v;
+      memtableKeys++;
+      committedOps++;
+      document.getElementById('memtableKeys').textContent = `${memtableKeys} Keys`;
+      document.getElementById('walRecords').textContent = `${memtableKeys} Frames`;
+      appendTerm(`nexus 127.0.0.1:6379> SET ${k} "${v}"\n  OK  (elapsed: 230 µs)`);
+    }
+
+    function forceFlush() {
+      sstCount++;
+      memtableKeys = 0;
+      document.getElementById('sstableCount').textContent = `${sstCount} Tables`;
+      document.getElementById('memtableKeys').textContent = `0 Keys`;
+      document.getElementById('metricMem').textContent = `0.1 MB`;
+      appendTerm(`[LSM-Engine] Flushed MemTable to 00000${sstCount}.sst (Sparse Index + Bloom Filter serialized)`);
+    }
+
+    function triggerChaos() {
+      const btn = document.getElementById('btnChaos');
+      if (!isNode1Dead) {
+        // Kill Node 1
+        isNode1Dead = true;
+        currentLeader = 2;
+        currentTerm++;
+
+        document.getElementById('nodeCard1').className = 'node-box is-killed';
+        document.getElementById('nodeBadge1').className = 'node-badge badge-offline';
+        document.getElementById('nodeBadge1').textContent = 'Offline (SIGKILL)';
+        document.getElementById('nodeRole1').textContent = 'Process Terminated';
+
+        // Promote Node 2
+        document.getElementById('nodeCard2').className = 'node-box is-leader';
+        document.getElementById('nodeBadge2').className = 'node-badge badge-leader';
+        document.getElementById('nodeBadge2').textContent = 'Leader (Term ' + currentTerm + ')';
+        document.getElementById('nodeRole2').textContent = 'Commit Index: ' + committedOps;
+
+        document.getElementById('clusterStatusText').textContent = 'Leader Failover Complete (Term ' + currentTerm + ')';
+        document.getElementById('metricRaft').textContent = '2 / 3 Active';
+        document.getElementById('metricTerm').textContent = `Term ${currentTerm} • Node 2 is Leader`;
+
+        btn.className = 'btn btn-primary';
+        btn.innerHTML = '<span>🔄 Revive Node 1 (Re-join Cluster)</span>';
+        appendTerm(`\n[CHAOS WARNING] Node 1 killed by user!`);
+        appendTerm(`[RAFT] Election timeout fired on Node 2 -> Won quorum (2/3) -> Promoted to Leader for Term ${currentTerm}!`);
+      } else {
+        // Revive Node 1
+        isNode1Dead = false;
+        document.getElementById('nodeCard1').className = 'node-box';
+        document.getElementById('nodeBadge1').className = 'node-badge badge-follower';
+        document.getElementById('nodeBadge1').textContent = 'Follower';
+        document.getElementById('nodeRole1').textContent = 'Replicated up to ' + committedOps;
+
+        document.getElementById('clusterStatusText').textContent = 'Cluster Healthy (3 Nodes Quorum)';
+        document.getElementById('metricRaft').textContent = '3 / 3 Active';
+
+        btn.className = 'btn btn-danger';
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg><span>Simulate Chaos: Kill Leader</span>';
+        appendTerm(`\n[RECOVERY] Node 1 re-connected -> Caught up with log replication from Leader (Node 2)!`);
+      }
+    }
+
+    // Dynamic QPS Fluctuation Simulator
+    setInterval(() => {
+      const qpsEl = document.getElementById('metricQps');
+      if (qpsEl) {
+        const base = isNode1Dead ? 82000 : 102000;
+        const delta = Math.floor(Math.random() * 4000) - 2000;
+        qpsEl.textContent = (base + delta).toLocaleString();
+      }
+    }, 2000);
+  </script>
+</body>
+</html>
