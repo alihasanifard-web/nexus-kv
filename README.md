@@ -1,5 +1,9 @@
 # ⚡ NexusKV — Distributed Raft & LSM-Tree Storage Engine
 
+[![CI](https://github.com/alihasanifard-web/nexus-kv/actions/workflows/ci.yml/badge.svg)](https://github.com/alihasanifard-web/nexus-kv/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+
 ```
     ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗██╗  ██╗██╗   ██╗
     ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝██║ ██╔╝██║   ██║
@@ -150,7 +154,31 @@ kubectl apply -f deploy/kubernetes.yaml
 ## 📑 Technical Whitepaper
 For an in-depth exploration of the LSM-Tree disk layout, Raft invariants, and concurrency architecture, read our [Engineering Whitepaper](docs/WHITEPAPER.md).
 
-### Connect via any Redis Client
+### Connect via Dedicated Interactive CLI (nexus-cli)
+```bash
+# Launch interactive REPL console
+cargo run --release --bin nexus_cli -- -p 6379
+
+nexus 127.0.0.1:6379> SET user:101 "Ali Hasanifard"
+  OK  (elapsed: 280 µs)
+nexus 127.0.0.1:6379> GET user:101
+  "Ali Hasanifard"  (elapsed: 190 µs)
+nexus 127.0.0.1:6379> ROLE
+  master  (elapsed: 110 µs)
+```
+
+### Python SDK Usage
+```python
+from nexus_kv import NexusClient
+
+with NexusClient(host="127.0.0.1", port=6379) as client:
+    client.set("user:name", "Ali Hasanifard")
+    print(client.get("user:name"))       # "Ali Hasanifard"
+    print(client.keys("user:*"))         # ["user:name"]
+    print(client.delete("user:name"))    # True
+```
+
+### Connect via any Standard Redis Client
 ```bash
 redis-cli -p 6379
 127.0.0.1:6379> PING
