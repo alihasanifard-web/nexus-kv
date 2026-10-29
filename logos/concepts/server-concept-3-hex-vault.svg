@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3730a3"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Hexagon -->
+    <polygon points="256,64 416,160 416,352 256,448 96,352 96,160" fill="#0d0f18" stroke="url(#srv3-grad)" stroke-width="22" stroke-linejoin="round"/>
+
+    <!-- Inner Floating Cube / Storage Core -->
+    <polygon points="256,150 350,204 350,308 256,362 162,308 162,204" fill="#151827" stroke="#313752" stroke-width="12" stroke-linejoin="round"/>
+    
+    <!-- Isometric Top Face -->
+    <polygon points="256,166 334,210 256,256 178,210" fill="#4f46e5" opacity="0.85"/>
+    <!-- Isometric Left Face -->
+    <polygon points="178,216 256,260 256,346 178,302" fill="#3730a3" opacity="0.9"/>
+    <!-- Isometric Right Face -->
+    <polygon points="334,216 256,260 256,346 334,302" fill="#6366f1" opacity="0.95"/>
+  </g>
+</svg>

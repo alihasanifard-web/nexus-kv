@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Display Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#091410" stroke="#16382a" stroke-width="14"/>
+
+    <!-- Dynamic 3-Bar Telemetry Levels -->
+    <rect x="156" y="240" width="44" height="130" rx="16" fill="#10b981" opacity="0.6"/>
+    <rect x="234" y="160" width="44" height="210" rx="16" fill="url(#dsh2-grad)"/>
+    <rect x="312" y="200" width="44" height="170" rx="16" fill="#10b981" opacity="0.8"/>
+
+    <!-- Horizontal Consensus Baseline -->
+    <line x1="130" y1="390" x2="382" y2="390" stroke="#34d399" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

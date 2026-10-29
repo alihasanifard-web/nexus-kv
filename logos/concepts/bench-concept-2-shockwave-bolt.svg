@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Shield -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#130e0a" stroke="#382214" stroke-width="14"/>
+
+    <!-- Dual Lightning Bolt Shockwaves -->
+    <polygon points="276,128 176,268 246,268 216,384 336,244 266,244" fill="url(#bnc2-grad)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusKV — مجموعه هویت بصری و لوگوهای اختصاصی</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090a0f;
+      --surface: #10121a;
+      --surface-elevated: #161925;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.2);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #6366f1;
+    }
+
+    body.light {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-elevated: #f1f5f9;
+      --border: rgba(0, 0, 0, 0.09);
+      --border-hover: rgba(0, 0, 0, 0.22);
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --accent: #4f46e5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.7;
+      transition: background 0.25s, color 0.25s;
+      padding-bottom: 60px;
+    }
+
+    header {
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-sub {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    .theme-toggle-btn {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--border-hover);
+    }
+
+    .hero-banner {
+      max-width: 1200px;
+      margin: 36px auto 20px;
+      padding: 0 24px;
+      text-align: center;
+    }
+
+    .hero-banner h1 {
+      font-size: 1.85rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .hero-banner p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .main-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .app-section {
+      margin-top: 48px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    .concepts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .concepts-grid { grid-template-columns: 1fr; }
+    }
+
+    .concept-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .concept-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .card-preview {
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(circle at center, rgba(255,255,255,0.03) 0%, transparent 70%);
+    }
+
+    body.light .card-preview {
+      background: radial-gradient(circle at center, rgba(0,0,0,0.03) 0%, transparent 70%);
+    }
+
+    .card-preview svg {
+      max-width: 150px;
+      max-height: 150px;
+      filter: drop-shadow(0 8px 24px rgba(0,0,0,0.35));
+    }
+
+    .card-details {
+      padding: 18px 20px;
+      border-top: 1px solid var(--border);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .concept-title {
+      font-size: 0.98rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .concept-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    /* Favicon Strip Check */
+    .favicon-strip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      direction: ltr;
+    }
+
+    .strip-label {
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-dim);
+    }
+
+    .strip-sizes {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .strip-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .strip-item svg {
+      border-radius: 3px;
+    }
+
+    .strip-px {
+      font-size: 0.62rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-dim);
+    }
+
+    footer {
+      max-width: 1200px;
+      margin: 50px auto 0;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand-title">
+      <span>NexusKV Brand Identity</span>
+      <span class="brand-sub">۱۲ کانسپت لوگوی اختصاصی و مجزا برای ۴ برنامه اکوسیستم نکسوس</span>
+    </div>
+    <button class="theme-toggle-btn" onclick="toggleTheme()" id="btnTheme">
+      <span>☀️ حالت روشن (Light)</span>
+    </button>
+  </header>
+
+  <!-- Hero Banner -->
+  <div class="hero-banner">
+    <h1>هویت بصری و کانسپت‌های لوگوی NexusKV</h1>
+    <p>هر ۴ برنامه موجود در پروژه دارای نماد، پالت رنگی و استعاره اختصاصی هستند تا کاربر در اولین نگاه عملکرد هر ابزار را فوراً از یکدیگر متمایز کند.</p>
+  </div>
+
+  <div class="main-wrap">
+
+    <!-- App Group: 1. Nexus Server (موتور اصلی دیتابیس و هسته اجماع Raft) -->
+    <div class="app-section">
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:1.15rem; font-weight:700;">1. Nexus Server (موتور اصلی دیتابیس و هسته اجماع Raft)</h2>
+          <div style="font-size:0.84rem; color:var(--text-muted); margin-top:2px;">سرور دیتابیس توزیع‌شده با الگوریتم اجماع Raft و موتور ذخیره‌سازی LSM-Tree</div>
+        </div>
+        <span class="section-badge" style="background:#6366f122; color:#6366f1; border:1px solid #6366f144;">SERVER</span>
+      </div>
+
+      <div class="concepts-grid">
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="srv1-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c7d2fe"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Connecting Interconnect Channels -->
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="#2e344d" stroke-width="28" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="url(#srv1-grad)" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+    
+    <!-- Central Consensus Core -->
+    <circle cx="256" cy="256" r="32" fill="#11131f" stroke="#6366f1" stroke-width="8"/>
+    <circle cx="256" cy="256" r="14" fill="#a5b4fc"/>
+
+    <!-- 3 Raft Nodes -->
+    <!-- Top Leader Node -->
+    <circle cx="256" cy="128" r="46" fill="#0c0e17" stroke="url(#srv1-grad)" stroke-width="14"/>
+    <circle cx="256" cy="128" r="20" fill="url(#srv1-glow)"/>
+
+    <!-- Bottom Left Node -->
+    <circle cx="146" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="146" cy="320" r="16" fill="#818cf8"/>
+
+    <!-- Bottom Right Node -->
+    <circle cx="366" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="366" cy="320" r="16" fill="#818cf8"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۱: نکسوس سه‌گانه Raft (The Consensus Triad)</div>
+              <div class="concept-desc">سه نود متقارن با کانال‌های پایدار ارتباطی و هسته اجماع مرکزی. نماد حد نصاب اکثریت و پایداری کلاستر.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="srv1-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c7d2fe"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Connecting Interconnect Channels -->
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="#2e344d" stroke-width="28" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="url(#srv1-grad)" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+    
+    <!-- Central Consensus Core -->
+    <circle cx="256" cy="256" r="32" fill="#11131f" stroke="#6366f1" stroke-width="8"/>
+    <circle cx="256" cy="256" r="14" fill="#a5b4fc"/>
+
+    <!-- 3 Raft Nodes -->
+    <!-- Top Leader Node -->
+    <circle cx="256" cy="128" r="46" fill="#0c0e17" stroke="url(#srv1-grad)" stroke-width="14"/>
+    <circle cx="256" cy="128" r="20" fill="url(#srv1-glow)"/>
+
+    <!-- Bottom Left Node -->
+    <circle cx="146" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="146" cy="320" r="16" fill="#818cf8"/>
+
+    <!-- Bottom Right Node -->
+    <circle cx="366" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="366" cy="320" r="16" fill="#818cf8"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="srv1-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c7d2fe"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Connecting Interconnect Channels -->
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="#2e344d" stroke-width="28" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="url(#srv1-grad)" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+    
+    <!-- Central Consensus Core -->
+    <circle cx="256" cy="256" r="32" fill="#11131f" stroke="#6366f1" stroke-width="8"/>
+    <circle cx="256" cy="256" r="14" fill="#a5b4fc"/>
+
+    <!-- 3 Raft Nodes -->
+    <!-- Top Leader Node -->
+    <circle cx="256" cy="128" r="46" fill="#0c0e17" stroke="url(#srv1-grad)" stroke-width="14"/>
+    <circle cx="256" cy="128" r="20" fill="url(#srv1-glow)"/>
+
+    <!-- Bottom Left Node -->
+    <circle cx="146" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="146" cy="320" r="16" fill="#818cf8"/>
+
+    <!-- Bottom Right Node -->
+    <circle cx="366" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="366" cy="320" r="16" fill="#818cf8"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="srv1-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c7d2fe"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Connecting Interconnect Channels -->
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="#2e344d" stroke-width="28" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M256 128 L146 320 L366 320 Z" fill="none" stroke="url(#srv1-grad)" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+    
+    <!-- Central Consensus Core -->
+    <circle cx="256" cy="256" r="32" fill="#11131f" stroke="#6366f1" stroke-width="8"/>
+    <circle cx="256" cy="256" r="14" fill="#a5b4fc"/>
+
+    <!-- 3 Raft Nodes -->
+    <!-- Top Leader Node -->
+    <circle cx="256" cy="128" r="46" fill="#0c0e17" stroke="url(#srv1-grad)" stroke-width="14"/>
+    <circle cx="256" cy="128" r="20" fill="url(#srv1-glow)"/>
+
+    <!-- Bottom Left Node -->
+    <circle cx="146" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="146" cy="320" r="16" fill="#818cf8"/>
+
+    <!-- Bottom Right Node -->
+    <circle cx="366" cy="320" r="42" fill="#0c0e17" stroke="#4f46e5" stroke-width="12"/>
+    <circle cx="366" cy="320" r="16" fill="#818cf8"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv2-grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="srv2-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield / Container -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#0d0f18" stroke="#25293d" stroke-width="14"/>
+
+    <!-- Left Pillar (MemTable RAM) -->
+    <rect x="140" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Right Pillar (SSTable Disk) -->
+    <rect x="316" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Diagonal Pipeline (WAL & Raft Stream) -->
+    <path d="M168 152 L344 360" stroke="url(#srv2-grad2)" stroke-width="52" stroke-linecap="round"/>
+
+    <!-- Inner Core Dot -->
+    <circle cx="256" cy="256" r="18" fill="#ffffff"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۲: مونوگرام لایه‌ای N (LSM-Tree Monogram)</div>
+              <div class="concept-desc">حرف N شکل‌گرفته از ۳ لایه ذخیره‌سازی: بافر رم (MemTable)، جریان لاگ WAL و دیسک پایدار SSTable.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv2-grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="srv2-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield / Container -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#0d0f18" stroke="#25293d" stroke-width="14"/>
+
+    <!-- Left Pillar (MemTable RAM) -->
+    <rect x="140" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Right Pillar (SSTable Disk) -->
+    <rect x="316" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Diagonal Pipeline (WAL & Raft Stream) -->
+    <path d="M168 152 L344 360" stroke="url(#srv2-grad2)" stroke-width="52" stroke-linecap="round"/>
+
+    <!-- Inner Core Dot -->
+    <circle cx="256" cy="256" r="18" fill="#ffffff"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv2-grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="srv2-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield / Container -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#0d0f18" stroke="#25293d" stroke-width="14"/>
+
+    <!-- Left Pillar (MemTable RAM) -->
+    <rect x="140" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Right Pillar (SSTable Disk) -->
+    <rect x="316" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Diagonal Pipeline (WAL & Raft Stream) -->
+    <path d="M168 152 L344 360" stroke="url(#srv2-grad2)" stroke-width="52" stroke-linecap="round"/>
+
+    <!-- Inner Core Dot -->
+    <circle cx="256" cy="256" r="18" fill="#ffffff"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv2-grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="srv2-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield / Container -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#0d0f18" stroke="#25293d" stroke-width="14"/>
+
+    <!-- Left Pillar (MemTable RAM) -->
+    <rect x="140" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Right Pillar (SSTable Disk) -->
+    <rect x="316" y="140" width="56" height="232" rx="28" fill="url(#srv2-grad1)"/>
+
+    <!-- Diagonal Pipeline (WAL & Raft Stream) -->
+    <path d="M168 152 L344 360" stroke="url(#srv2-grad2)" stroke-width="52" stroke-linecap="round"/>
+
+    <!-- Inner Core Dot -->
+    <circle cx="256" cy="256" r="18" fill="#ffffff"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3730a3"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Hexagon -->
+    <polygon points="256,64 416,160 416,352 256,448 96,352 96,160" fill="#0d0f18" stroke="url(#srv3-grad)" stroke-width="22" stroke-linejoin="round"/>
+
+    <!-- Inner Floating Cube / Storage Core -->
+    <polygon points="256,150 350,204 350,308 256,362 162,308 162,204" fill="#151827" stroke="#313752" stroke-width="12" stroke-linejoin="round"/>
+    
+    <!-- Isometric Top Face -->
+    <polygon points="256,166 334,210 256,256 178,210" fill="#4f46e5" opacity="0.85"/>
+    <!-- Isometric Left Face -->
+    <polygon points="178,216 256,260 256,346 178,302" fill="#3730a3" opacity="0.9"/>
+    <!-- Isometric Right Face -->
+    <polygon points="334,216 256,260 256,346 334,302" fill="#6366f1" opacity="0.95"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۳: سلول شش‌ضلعی پایدار (Indestructible Hex-Vault)</div>
+              <div class="concept-desc">محفظه شش‌ضلعی هندسی با هسته ایزومتریک مکعبی، نماد ذخیره‌سازی امن و ماندگاری بدون از دست رفتن داده.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3730a3"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Hexagon -->
+    <polygon points="256,64 416,160 416,352 256,448 96,352 96,160" fill="#0d0f18" stroke="url(#srv3-grad)" stroke-width="22" stroke-linejoin="round"/>
+
+    <!-- Inner Floating Cube / Storage Core -->
+    <polygon points="256,150 350,204 350,308 256,362 162,308 162,204" fill="#151827" stroke="#313752" stroke-width="12" stroke-linejoin="round"/>
+    
+    <!-- Isometric Top Face -->
+    <polygon points="256,166 334,210 256,256 178,210" fill="#4f46e5" opacity="0.85"/>
+    <!-- Isometric Left Face -->
+    <polygon points="178,216 256,260 256,346 178,302" fill="#3730a3" opacity="0.9"/>
+    <!-- Isometric Right Face -->
+    <polygon points="334,216 256,260 256,346 334,302" fill="#6366f1" opacity="0.95"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3730a3"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Hexagon -->
+    <polygon points="256,64 416,160 416,352 256,448 96,352 96,160" fill="#0d0f18" stroke="url(#srv3-grad)" stroke-width="22" stroke-linejoin="round"/>
+
+    <!-- Inner Floating Cube / Storage Core -->
+    <polygon points="256,150 350,204 350,308 256,362 162,308 162,204" fill="#151827" stroke="#313752" stroke-width="12" stroke-linejoin="round"/>
+    
+    <!-- Isometric Top Face -->
+    <polygon points="256,166 334,210 256,256 178,210" fill="#4f46e5" opacity="0.85"/>
+    <!-- Isometric Left Face -->
+    <polygon points="178,216 256,260 256,346 178,302" fill="#3730a3" opacity="0.9"/>
+    <!-- Isometric Right Face -->
+    <polygon points="334,216 256,260 256,346 334,302" fill="#6366f1" opacity="0.95"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="srv3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#3730a3"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Hexagon -->
+    <polygon points="256,64 416,160 416,352 256,448 96,352 96,160" fill="#0d0f18" stroke="url(#srv3-grad)" stroke-width="22" stroke-linejoin="round"/>
+
+    <!-- Inner Floating Cube / Storage Core -->
+    <polygon points="256,150 350,204 350,308 256,362 162,308 162,204" fill="#151827" stroke="#313752" stroke-width="12" stroke-linejoin="round"/>
+    
+    <!-- Isometric Top Face -->
+    <polygon points="256,166 334,210 256,256 178,210" fill="#4f46e5" opacity="0.85"/>
+    <!-- Isometric Left Face -->
+    <polygon points="178,216 256,260 256,346 178,302" fill="#3730a3" opacity="0.9"/>
+    <!-- Isometric Right Face -->
+    <polygon points="334,216 256,260 256,346 334,302" fill="#6366f1" opacity="0.95"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- App Group: 2. Nexus CLI (کنسول تعاملی و ترمینال کلاینت) -->
+    <div class="app-section">
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:1.15rem; font-weight:700;">2. Nexus CLI (کنسول تعاملی و ترمینال کلاینت)</h2>
+          <div style="font-size:0.84rem; color:var(--text-muted); margin-top:2px;">کلاینت خط فرمان و مفسر تعاملی REPL برای ارسال آنی فرامین RESP</div>
+        </div>
+        <span class="section-badge" style="background:#06b6d422; color:#06b6d4; border:1px solid #06b6d444;">CLI</span>
+      </div>
+
+      <div class="concepts-grid">
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli1-grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="cli1-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Terminal Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#081017" stroke="#162e3d" stroke-width="14"/>
+
+    <!-- Primary Prompt Chevron > -->
+    <path d="M164 168 L248 256 L164 344" fill="none" stroke="url(#cli1-grad1)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Secondary Prompt Chevron > -->
+    <path d="M248 168 L332 256 L248 344" fill="none" stroke="url(#cli1-grad2)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۱: فلش پرامپت دوگانه (>> Double Chevron)</div>
+              <div class="concept-desc">دو علامت بزرگتر پشت‌سرهم با پالت آسمانی، نماد اجرای فوق‌سریع دستورات خط فرمان در ترمینال.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli1-grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="cli1-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Terminal Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#081017" stroke="#162e3d" stroke-width="14"/>
+
+    <!-- Primary Prompt Chevron > -->
+    <path d="M164 168 L248 256 L164 344" fill="none" stroke="url(#cli1-grad1)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Secondary Prompt Chevron > -->
+    <path d="M248 168 L332 256 L248 344" fill="none" stroke="url(#cli1-grad2)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli1-grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="cli1-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Terminal Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#081017" stroke="#162e3d" stroke-width="14"/>
+
+    <!-- Primary Prompt Chevron > -->
+    <path d="M164 168 L248 256 L164 344" fill="none" stroke="url(#cli1-grad1)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Secondary Prompt Chevron > -->
+    <path d="M248 168 L332 256 L248 344" fill="none" stroke="url(#cli1-grad2)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli1-grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="cli1-grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Terminal Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#081017" stroke="#162e3d" stroke-width="14"/>
+
+    <!-- Primary Prompt Chevron > -->
+    <path d="M164 168 L248 256 L164 344" fill="none" stroke="url(#cli1-grad1)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Secondary Prompt Chevron > -->
+    <path d="M248 168 L332 256 L248 344" fill="none" stroke="url(#cli1-grad2)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dark Glass Shield -->
+    <rect x="80" y="80" width="352" height="352" rx="84" fill="#0a1219" stroke="#1b3040" stroke-width="14"/>
+
+    <!-- Command Prompt Arrow -->
+    <path d="M160 176 L236 248 L160 320" fill="none" stroke="url(#cli2-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Terminal Cursor Block _ -->
+    <rect x="272" y="300" width="92" height="24" rx="10" fill="#38bdf8"/>
+
+    <!-- Terminal Window Top Dots -->
+    <circle cx="160" cy="128" r="8" fill="#ef4444"/>
+    <circle cx="188" cy="128" r="8" fill="#f59e0b"/>
+    <circle cx="216" cy="128" r="8" fill="#10b981"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۲: نماد پرامپت و کرسر ترمینال ( > _ )</div>
+              <div class="concept-desc">شیلد تیره‌رنگ با نشانگر ورودی `>` و نشانگر مکان‌نمای چشمک‌زن `_` همراه با دکمه‌های کنترل پنجره.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dark Glass Shield -->
+    <rect x="80" y="80" width="352" height="352" rx="84" fill="#0a1219" stroke="#1b3040" stroke-width="14"/>
+
+    <!-- Command Prompt Arrow -->
+    <path d="M160 176 L236 248 L160 320" fill="none" stroke="url(#cli2-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Terminal Cursor Block _ -->
+    <rect x="272" y="300" width="92" height="24" rx="10" fill="#38bdf8"/>
+
+    <!-- Terminal Window Top Dots -->
+    <circle cx="160" cy="128" r="8" fill="#ef4444"/>
+    <circle cx="188" cy="128" r="8" fill="#f59e0b"/>
+    <circle cx="216" cy="128" r="8" fill="#10b981"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dark Glass Shield -->
+    <rect x="80" y="80" width="352" height="352" rx="84" fill="#0a1219" stroke="#1b3040" stroke-width="14"/>
+
+    <!-- Command Prompt Arrow -->
+    <path d="M160 176 L236 248 L160 320" fill="none" stroke="url(#cli2-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Terminal Cursor Block _ -->
+    <rect x="272" y="300" width="92" height="24" rx="10" fill="#38bdf8"/>
+
+    <!-- Terminal Window Top Dots -->
+    <circle cx="160" cy="128" r="8" fill="#ef4444"/>
+    <circle cx="188" cy="128" r="8" fill="#f59e0b"/>
+    <circle cx="216" cy="128" r="8" fill="#10b981"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dark Glass Shield -->
+    <rect x="80" y="80" width="352" height="352" rx="84" fill="#0a1219" stroke="#1b3040" stroke-width="14"/>
+
+    <!-- Command Prompt Arrow -->
+    <path d="M160 176 L236 248 L160 320" fill="none" stroke="url(#cli2-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Terminal Cursor Block _ -->
+    <rect x="272" y="300" width="92" height="24" rx="10" fill="#38bdf8"/>
+
+    <!-- Terminal Window Top Dots -->
+    <circle cx="160" cy="128" r="8" fill="#ef4444"/>
+    <circle cx="188" cy="128" r="8" fill="#f59e0b"/>
+    <circle cx="216" cy="128" r="8" fill="#10b981"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Isometric CLI Cube Frame -->
+    <polygon points="256,80 406,170 406,342 256,432 106,342 106,170" fill="#081119" stroke="#162e3d" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- Angled Command Slash & Chevrons forming 'N' -->
+    <path d="M172 320 L172 192 L340 320 L340 192" fill="none" stroke="url(#cli3-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Center Prompt Glow Signal -->
+    <circle cx="256" cy="256" r="16" fill="#38bdf8"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۳: مونوگرام ترمینال N (Prompt Monogram)</div>
+              <div class="concept-desc">مکعب خط فرمان زاویه‌دار که بدنه آن مونوگرام N و سیگنال مرکزی اتصال زنده را نشان می‌دهد.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Isometric CLI Cube Frame -->
+    <polygon points="256,80 406,170 406,342 256,432 106,342 106,170" fill="#081119" stroke="#162e3d" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- Angled Command Slash & Chevrons forming 'N' -->
+    <path d="M172 320 L172 192 L340 320 L340 192" fill="none" stroke="url(#cli3-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Center Prompt Glow Signal -->
+    <circle cx="256" cy="256" r="16" fill="#38bdf8"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Isometric CLI Cube Frame -->
+    <polygon points="256,80 406,170 406,342 256,432 106,342 106,170" fill="#081119" stroke="#162e3d" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- Angled Command Slash & Chevrons forming 'N' -->
+    <path d="M172 320 L172 192 L340 320 L340 192" fill="none" stroke="url(#cli3-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Center Prompt Glow Signal -->
+    <circle cx="256" cy="256" r="16" fill="#38bdf8"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Isometric CLI Cube Frame -->
+    <polygon points="256,80 406,170 406,342 256,432 106,342 106,170" fill="#081119" stroke="#162e3d" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- Angled Command Slash & Chevrons forming 'N' -->
+    <path d="M172 320 L172 192 L340 320 L340 192" fill="none" stroke="url(#cli3-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Center Prompt Glow Signal -->
+    <circle cx="256" cy="256" r="16" fill="#38bdf8"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- App Group: 3. Nexus Benchmark (تستر فشار و بارگذاری سنگین) -->
+    <div class="app-section">
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:1.15rem; font-weight:700;">3. Nexus Benchmark (تستر فشار و بارگذاری سنگین)</h2>
+          <div style="font-size:0.84rem; color:var(--text-muted); margin-top:2px;">ابزار بنچمارک چندترده برای سنجش ۱۰۲k QPS و تحلیل تاخیر صدک‌ها</div>
+        </div>
+        <span class="section-badge" style="background:#f9731622; color:#f97316; border:1px solid #f9731644;">BENCHMARK</span>
+      </div>
+
+      <div class="concepts-grid">
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc1-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="65%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dial Gauge Background -->
+    <circle cx="256" cy="256" r="180" fill="#140f0c" stroke="#332117" stroke-width="14"/>
+
+    <!-- High Velocity Speed Arc (240 degrees) -->
+    <path d="M142 370 A 150 150 0 1 1 370 370" fill="none" stroke="url(#bnc1-grad)" stroke-width="32" stroke-linecap="round"/>
+
+    <!-- Tachometer Needle Pin -->
+    <circle cx="256" cy="256" r="28" fill="#1e140f" stroke="#f97316" stroke-width="8"/>
+    <circle cx="256" cy="256" r="12" fill="#fff"/>
+
+    <!-- Max Needle Pushing Redline -->
+    <path d="M256 256 L342 170" stroke="#ff385c" stroke-width="14" stroke-linecap="round"/>
+    
+    <!-- Redline Tick Peak -->
+    <circle cx="370" cy="370" r="10" fill="#ef4444"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۱: سرعت‌سنج تاکومتر (The Velocity Arc)</div>
+              <div class="concept-desc">گیج سرعت با سوزن متمایل به حداکثر توان و ردلاین قرمز، نماد شکستن رکورد ۱۰۰ هزار درخواست در ثانیه.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc1-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="65%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dial Gauge Background -->
+    <circle cx="256" cy="256" r="180" fill="#140f0c" stroke="#332117" stroke-width="14"/>
+
+    <!-- High Velocity Speed Arc (240 degrees) -->
+    <path d="M142 370 A 150 150 0 1 1 370 370" fill="none" stroke="url(#bnc1-grad)" stroke-width="32" stroke-linecap="round"/>
+
+    <!-- Tachometer Needle Pin -->
+    <circle cx="256" cy="256" r="28" fill="#1e140f" stroke="#f97316" stroke-width="8"/>
+    <circle cx="256" cy="256" r="12" fill="#fff"/>
+
+    <!-- Max Needle Pushing Redline -->
+    <path d="M256 256 L342 170" stroke="#ff385c" stroke-width="14" stroke-linecap="round"/>
+    
+    <!-- Redline Tick Peak -->
+    <circle cx="370" cy="370" r="10" fill="#ef4444"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc1-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="65%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dial Gauge Background -->
+    <circle cx="256" cy="256" r="180" fill="#140f0c" stroke="#332117" stroke-width="14"/>
+
+    <!-- High Velocity Speed Arc (240 degrees) -->
+    <path d="M142 370 A 150 150 0 1 1 370 370" fill="none" stroke="url(#bnc1-grad)" stroke-width="32" stroke-linecap="round"/>
+
+    <!-- Tachometer Needle Pin -->
+    <circle cx="256" cy="256" r="28" fill="#1e140f" stroke="#f97316" stroke-width="8"/>
+    <circle cx="256" cy="256" r="12" fill="#fff"/>
+
+    <!-- Max Needle Pushing Redline -->
+    <path d="M256 256 L342 170" stroke="#ff385c" stroke-width="14" stroke-linecap="round"/>
+    
+    <!-- Redline Tick Peak -->
+    <circle cx="370" cy="370" r="10" fill="#ef4444"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc1-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="65%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dial Gauge Background -->
+    <circle cx="256" cy="256" r="180" fill="#140f0c" stroke="#332117" stroke-width="14"/>
+
+    <!-- High Velocity Speed Arc (240 degrees) -->
+    <path d="M142 370 A 150 150 0 1 1 370 370" fill="none" stroke="url(#bnc1-grad)" stroke-width="32" stroke-linecap="round"/>
+
+    <!-- Tachometer Needle Pin -->
+    <circle cx="256" cy="256" r="28" fill="#1e140f" stroke="#f97316" stroke-width="8"/>
+    <circle cx="256" cy="256" r="12" fill="#fff"/>
+
+    <!-- Max Needle Pushing Redline -->
+    <path d="M256 256 L342 170" stroke="#ff385c" stroke-width="14" stroke-linecap="round"/>
+    
+    <!-- Redline Tick Peak -->
+    <circle cx="370" cy="370" r="10" fill="#ef4444"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Shield -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#130e0a" stroke="#382214" stroke-width="14"/>
+
+    <!-- Dual Lightning Bolt Shockwaves -->
+    <polygon points="276,128 176,268 246,268 216,384 336,244 266,244" fill="url(#bnc2-grad)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۲: صاعقه ضربتی دوگانه (Kinetic Shockwave)</div>
+              <div class="concept-desc">صاعقه پرانرژی زرد-نارنجی، نماد توان تزریق بارهای همزمان ۵۰ ورکر با تاخیر ساب-میلی‌ثانیه‌ای.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Shield -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#130e0a" stroke="#382214" stroke-width="14"/>
+
+    <!-- Dual Lightning Bolt Shockwaves -->
+    <polygon points="276,128 176,268 246,268 216,384 336,244 266,244" fill="url(#bnc2-grad)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Shield -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#130e0a" stroke="#382214" stroke-width="14"/>
+
+    <!-- Dual Lightning Bolt Shockwaves -->
+    <polygon points="276,128 176,268 246,268 216,384 336,244 266,244" fill="url(#bnc2-grad)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Shield -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#130e0a" stroke="#382214" stroke-width="14"/>
+
+    <!-- Dual Lightning Bolt Shockwaves -->
+    <polygon points="276,128 176,268 246,268 216,384 336,244 266,244" fill="url(#bnc2-grad)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc3-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Octagon Frame -->
+    <polygon points="180,76 332,76 436,180 436,332 332,436 180,436 76,332 76,180" fill="#120e0a" stroke="#382115" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- High-Frequency Pulse Waveform -->
+    <path d="M120 256 L180 256 L216 160 L256 352 L296 216 L332 256 L392 256" fill="none" stroke="url(#bnc3-grad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Metric Node Anchor -->
+    <circle cx="256" cy="352" r="14" fill="#fbbf24"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۳: پالس تاخیر و فرکانس بالا (Latency Pulse)</div>
+              <div class="concept-desc">سیگنال ضربانی فشرده درون فریم هشت‌ضلعی، نماد کنترل تاخیر P99 در محدوده میکروثانیه.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc3-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Octagon Frame -->
+    <polygon points="180,76 332,76 436,180 436,332 332,436 180,436 76,332 76,180" fill="#120e0a" stroke="#382115" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- High-Frequency Pulse Waveform -->
+    <path d="M120 256 L180 256 L216 160 L256 352 L296 216 L332 256 L392 256" fill="none" stroke="url(#bnc3-grad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Metric Node Anchor -->
+    <circle cx="256" cy="352" r="14" fill="#fbbf24"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc3-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Octagon Frame -->
+    <polygon points="180,76 332,76 436,180 436,332 332,436 180,436 76,332 76,180" fill="#120e0a" stroke="#382115" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- High-Frequency Pulse Waveform -->
+    <path d="M120 256 L180 256 L216 160 L256 352 L296 216 L332 256 L392 256" fill="none" stroke="url(#bnc3-grad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Metric Node Anchor -->
+    <circle cx="256" cy="352" r="14" fill="#fbbf24"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bnc3-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Octagon Frame -->
+    <polygon points="180,76 332,76 436,180 436,332 332,436 180,436 76,332 76,180" fill="#120e0a" stroke="#382115" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- High-Frequency Pulse Waveform -->
+    <path d="M120 256 L180 256 L216 160 L256 352 L296 216 L332 256 L392 256" fill="none" stroke="url(#bnc3-grad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Metric Node Anchor -->
+    <circle cx="256" cy="352" r="14" fill="#fbbf24"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- App Group: 4. Nexus Cockpit & Dashboard (کنسول وب و رادار پایش) -->
+    <div class="app-section">
+      <div class="section-head">
+        <div>
+          <h2 style="font-size:1.15rem; font-weight:700;">4. Nexus Cockpit & Dashboard (کنسول وب و رادار پایش)</h2>
+          <div style="font-size:0.84rem; color:var(--text-muted); margin-top:2px;">داشبورد زنده تلمتری، مانیتورینگ سلامت نودها و تست آشوب کلاستر</div>
+        </div>
+        <span class="section-badge" style="background:#10b98122; color:#10b981; border:1px solid #10b98144;">COCKPIT</span>
+      </div>
+
+      <div class="concepts-grid">
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Radar Chassis -->
+    <circle cx="256" cy="256" r="180" fill="#081410" stroke="#153628" stroke-width="14"/>
+
+    <!-- Concentric Range Rings -->
+    <circle cx="256" cy="256" r="124" fill="none" stroke="#1d4837" stroke-width="6" stroke-dasharray="8 8"/>
+    <circle cx="256" cy="256" r="68" fill="none" stroke="#1d4837" stroke-width="6"/>
+
+    <!-- Crosshair Reticle -->
+    <line x1="256" y1="96" x2="256" y2="416" stroke="#1d4837" stroke-width="4"/>
+    <line x1="96" y1="256" x2="416" y2="256" stroke="#1d4837" stroke-width="4"/>
+
+    <!-- Radar Sweep Beam (45 deg) -->
+    <path d="M256 256 L356 156 A 141 141 0 0 0 256 115 Z" fill="url(#dsh1-grad)" opacity="0.35"/>
+
+    <!-- 3 Monitored Active Cluster Nodes -->
+    <circle cx="340" cy="180" r="16" fill="#34d399"/>
+    <circle cx="180" cy="310" r="12" fill="#10b981"/>
+    <circle cx="320" cy="330" r="12" fill="#10b981"/>
+    <circle cx="256" cy="256" r="8" fill="#ffffff"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۱: رادار پایش توپولوژی (Topology Radar Scope)</div>
+              <div class="concept-desc">صفحه رادار دوار با ۳ مدار نودهای فعال و خطوط کراس‌هیر متقاطع، نماد پایش زنده و دائمی وضعیت کلاستر.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Radar Chassis -->
+    <circle cx="256" cy="256" r="180" fill="#081410" stroke="#153628" stroke-width="14"/>
+
+    <!-- Concentric Range Rings -->
+    <circle cx="256" cy="256" r="124" fill="none" stroke="#1d4837" stroke-width="6" stroke-dasharray="8 8"/>
+    <circle cx="256" cy="256" r="68" fill="none" stroke="#1d4837" stroke-width="6"/>
+
+    <!-- Crosshair Reticle -->
+    <line x1="256" y1="96" x2="256" y2="416" stroke="#1d4837" stroke-width="4"/>
+    <line x1="96" y1="256" x2="416" y2="256" stroke="#1d4837" stroke-width="4"/>
+
+    <!-- Radar Sweep Beam (45 deg) -->
+    <path d="M256 256 L356 156 A 141 141 0 0 0 256 115 Z" fill="url(#dsh1-grad)" opacity="0.35"/>
+
+    <!-- 3 Monitored Active Cluster Nodes -->
+    <circle cx="340" cy="180" r="16" fill="#34d399"/>
+    <circle cx="180" cy="310" r="12" fill="#10b981"/>
+    <circle cx="320" cy="330" r="12" fill="#10b981"/>
+    <circle cx="256" cy="256" r="8" fill="#ffffff"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Radar Chassis -->
+    <circle cx="256" cy="256" r="180" fill="#081410" stroke="#153628" stroke-width="14"/>
+
+    <!-- Concentric Range Rings -->
+    <circle cx="256" cy="256" r="124" fill="none" stroke="#1d4837" stroke-width="6" stroke-dasharray="8 8"/>
+    <circle cx="256" cy="256" r="68" fill="none" stroke="#1d4837" stroke-width="6"/>
+
+    <!-- Crosshair Reticle -->
+    <line x1="256" y1="96" x2="256" y2="416" stroke="#1d4837" stroke-width="4"/>
+    <line x1="96" y1="256" x2="416" y2="256" stroke="#1d4837" stroke-width="4"/>
+
+    <!-- Radar Sweep Beam (45 deg) -->
+    <path d="M256 256 L356 156 A 141 141 0 0 0 256 115 Z" fill="url(#dsh1-grad)" opacity="0.35"/>
+
+    <!-- 3 Monitored Active Cluster Nodes -->
+    <circle cx="340" cy="180" r="16" fill="#34d399"/>
+    <circle cx="180" cy="310" r="12" fill="#10b981"/>
+    <circle cx="320" cy="330" r="12" fill="#10b981"/>
+    <circle cx="256" cy="256" r="8" fill="#ffffff"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Radar Chassis -->
+    <circle cx="256" cy="256" r="180" fill="#081410" stroke="#153628" stroke-width="14"/>
+
+    <!-- Concentric Range Rings -->
+    <circle cx="256" cy="256" r="124" fill="none" stroke="#1d4837" stroke-width="6" stroke-dasharray="8 8"/>
+    <circle cx="256" cy="256" r="68" fill="none" stroke="#1d4837" stroke-width="6"/>
+
+    <!-- Crosshair Reticle -->
+    <line x1="256" y1="96" x2="256" y2="416" stroke="#1d4837" stroke-width="4"/>
+    <line x1="96" y1="256" x2="416" y2="256" stroke="#1d4837" stroke-width="4"/>
+
+    <!-- Radar Sweep Beam (45 deg) -->
+    <path d="M256 256 L356 156 A 141 141 0 0 0 256 115 Z" fill="url(#dsh1-grad)" opacity="0.35"/>
+
+    <!-- 3 Monitored Active Cluster Nodes -->
+    <circle cx="340" cy="180" r="16" fill="#34d399"/>
+    <circle cx="180" cy="310" r="12" fill="#10b981"/>
+    <circle cx="320" cy="330" r="12" fill="#10b981"/>
+    <circle cx="256" cy="256" r="8" fill="#ffffff"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Display Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#091410" stroke="#16382a" stroke-width="14"/>
+
+    <!-- Dynamic 3-Bar Telemetry Levels -->
+    <rect x="156" y="240" width="44" height="130" rx="16" fill="#10b981" opacity="0.6"/>
+    <rect x="234" y="160" width="44" height="210" rx="16" fill="url(#dsh2-grad)"/>
+    <rect x="312" y="200" width="44" height="170" rx="16" fill="#10b981" opacity="0.8"/>
+
+    <!-- Horizontal Consensus Baseline -->
+    <line x1="130" y1="390" x2="382" y2="390" stroke="#34d399" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۲: ماتریس تلمتری و شاخص‌ها (Telemetry Levels)</div>
+              <div class="concept-desc">سه ستون نوری موازی با سطح پایه پایدار، نماد مانیتورینگ لحظه‌ای متریک‌های عملکردی و توان دیتابیس.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Display Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#091410" stroke="#16382a" stroke-width="14"/>
+
+    <!-- Dynamic 3-Bar Telemetry Levels -->
+    <rect x="156" y="240" width="44" height="130" rx="16" fill="#10b981" opacity="0.6"/>
+    <rect x="234" y="160" width="44" height="210" rx="16" fill="url(#dsh2-grad)"/>
+    <rect x="312" y="200" width="44" height="170" rx="16" fill="#10b981" opacity="0.8"/>
+
+    <!-- Horizontal Consensus Baseline -->
+    <line x1="130" y1="390" x2="382" y2="390" stroke="#34d399" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Display Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#091410" stroke="#16382a" stroke-width="14"/>
+
+    <!-- Dynamic 3-Bar Telemetry Levels -->
+    <rect x="156" y="240" width="44" height="130" rx="16" fill="#10b981" opacity="0.6"/>
+    <rect x="234" y="160" width="44" height="210" rx="16" fill="url(#dsh2-grad)"/>
+    <rect x="312" y="200" width="44" height="170" rx="16" fill="#10b981" opacity="0.8"/>
+
+    <!-- Horizontal Consensus Baseline -->
+    <line x1="130" y1="390" x2="382" y2="390" stroke="#34d399" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Rounded Display Frame -->
+    <rect x="76" y="76" width="360" height="360" rx="90" fill="#091410" stroke="#16382a" stroke-width="14"/>
+
+    <!-- Dynamic 3-Bar Telemetry Levels -->
+    <rect x="156" y="240" width="44" height="130" rx="16" fill="#10b981" opacity="0.6"/>
+    <rect x="234" y="160" width="44" height="210" rx="16" fill="url(#dsh2-grad)"/>
+    <rect x="312" y="200" width="44" height="170" rx="16" fill="#10b981" opacity="0.8"/>
+
+    <!-- Horizontal Consensus Baseline -->
+    <line x1="130" y1="390" x2="382" y2="390" stroke="#34d399" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concept Card -->
+        <div class="concept-card">
+          <div class="card-preview">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield -->
+    <polygon points="256,76 416,168 416,344 256,436 96,344 96,168" fill="#081410" stroke="#143628" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- 3 Internal Observability Rays -->
+    <line x1="256" y1="256" x2="256" y2="120" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="140" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="372" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- Central Signal Sensor -->
+    <circle cx="256" cy="256" r="34" fill="#06120e" stroke="#34d399" stroke-width="10"/>
+    <circle cx="256" cy="256" r="14" fill="#ffffff"/>
+
+    <!-- Peripheral Sensor Nodes -->
+    <circle cx="256" cy="120" r="16" fill="#34d399"/>
+    <circle cx="140" cy="322" r="16" fill="#34d399"/>
+    <circle cx="372" cy="322" r="16" fill="#34d399"/>
+  </g>
+</svg>
+          </div>
+          <div class="card-details">
+            <div>
+              <div class="concept-title">کانسپت ۳: شبکه مش دیده‌پذیری (Observability Mesh)</div>
+              <div class="concept-desc">سنسور مرکزی متصل به ۳ نود پیرامونی، نماد دیده‌پذیری کامل و دریافت لاگ‌های سلامت سرتاسر کلاستر.</div>
+            </div>
+
+            <!-- Favicon Legibility Check Strip -->
+            <div class="favicon-strip">
+              <span class="strip-label">FAVICON SIZES</span>
+              <div class="strip-sizes">
+                <div class="strip-item">
+                  <div style="width:36px; height:36px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield -->
+    <polygon points="256,76 416,168 416,344 256,436 96,344 96,168" fill="#081410" stroke="#143628" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- 3 Internal Observability Rays -->
+    <line x1="256" y1="256" x2="256" y2="120" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="140" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="372" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- Central Signal Sensor -->
+    <circle cx="256" cy="256" r="34" fill="#06120e" stroke="#34d399" stroke-width="10"/>
+    <circle cx="256" cy="256" r="14" fill="#ffffff"/>
+
+    <!-- Peripheral Sensor Nodes -->
+    <circle cx="256" cy="120" r="16" fill="#34d399"/>
+    <circle cx="140" cy="322" r="16" fill="#34d399"/>
+    <circle cx="372" cy="322" r="16" fill="#34d399"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">36px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:24px; height:24px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield -->
+    <polygon points="256,76 416,168 416,344 256,436 96,344 96,168" fill="#081410" stroke="#143628" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- 3 Internal Observability Rays -->
+    <line x1="256" y1="256" x2="256" y2="120" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="140" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="372" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- Central Signal Sensor -->
+    <circle cx="256" cy="256" r="34" fill="#06120e" stroke="#34d399" stroke-width="10"/>
+    <circle cx="256" cy="256" r="14" fill="#ffffff"/>
+
+    <!-- Peripheral Sensor Nodes -->
+    <circle cx="256" cy="120" r="16" fill="#34d399"/>
+    <circle cx="140" cy="322" r="16" fill="#34d399"/>
+    <circle cx="372" cy="322" r="16" fill="#34d399"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">24px</span>
+                </div>
+                <div class="strip-item">
+                  <div style="width:16px; height:16px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="dsh3-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Outer Shield -->
+    <polygon points="256,76 416,168 416,344 256,436 96,344 96,168" fill="#081410" stroke="#143628" stroke-width="14" stroke-linejoin="round"/>
+
+    <!-- 3 Internal Observability Rays -->
+    <line x1="256" y1="256" x2="256" y2="120" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="140" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+    <line x1="256" y1="256" x2="372" y2="322" stroke="url(#dsh3-grad)" stroke-width="20" stroke-linecap="round"/>
+
+    <!-- Central Signal Sensor -->
+    <circle cx="256" cy="256" r="34" fill="#06120e" stroke="#34d399" stroke-width="10"/>
+    <circle cx="256" cy="256" r="14" fill="#ffffff"/>
+
+    <!-- Peripheral Sensor Nodes -->
+    <circle cx="256" cy="120" r="16" fill="#34d399"/>
+    <circle cx="140" cy="322" r="16" fill="#34d399"/>
+    <circle cx="372" cy="322" r="16" fill="#34d399"/>
+  </g>
+</svg></div>
+                  <span class="strip-px">16px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    طراح و معمار سیستم: علی حسنی‌فرد (Ali Hasanifard) &bull; تمامی لوگوها با استاندارد وکتور مقیاس‌پذیر SVG (ViewBox 512x512) و بدون افت کیفیت رندر می‌شوند.
+  </footer>
+
+  <script>
+    function toggleTheme() {
+      const b = document.body;
+      const btn = document.getElementById('btnTheme');
+      if (b.classList.contains('light')) {
+        b.classList.remove('light');
+        btn.innerHTML = '<span>☀️ حالت روشن (Light)</span>';
+      } else {
+        b.classList.add('light');
+        btn.innerHTML = '<span>🌙 حالت تیره (Dark)</span>';
+      }
+    }
+  </script>
+</body>
+</html>
