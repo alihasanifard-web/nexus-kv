@@ -80,6 +80,17 @@ impl MemTable {
     pub fn is_empty(&self) -> bool {
         self.map.read().is_empty()
     }
+
+    /// Range scan over keys between start and end bounds
+    pub fn scan_range(&self, start: Option<&[u8]>, end: Option<&[u8]>) -> Vec<(Vec<u8>, Option<Vec<u8>>)> {
+        let map = self.map.read();
+        use std::ops::Bound::*;
+        let start_bound = start.map(|s| Included(s.to_vec())).unwrap_or(Unbounded);
+        let end_bound = end.map(|e| Included(e.to_vec())).unwrap_or(Unbounded);
+        map.range((start_bound, end_bound))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
 }
 
 #[cfg(test)]

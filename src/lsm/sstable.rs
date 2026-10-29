@@ -217,6 +217,21 @@ impl SSTable {
         Ok(entries)
     }
 
+    /// Read entries within an optional start and end range
+    pub fn scan_range(&self, start: Option<&[u8]>, end: Option<&[u8]>) -> std::io::Result<Vec<(Vec<u8>, Option<Vec<u8>>)>> {
+        let all = self.read_all()?;
+        let filtered = all.into_iter().filter(|(k, _)| {
+            if let Some(s) = start {
+                if k.as_slice() < s { return false; }
+            }
+            if let Some(e) = end {
+                if k.as_slice() > e { return false; }
+            }
+            true
+        }).collect();
+        Ok(filtered)
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }

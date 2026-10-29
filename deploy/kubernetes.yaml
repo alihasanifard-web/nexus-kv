@@ -1,0 +1,63 @@
+# ==============================================================================
+# ☸️ NEXUS-KV: KUBERNETES HIGH-AVAILABILITY 3-NODE STATEFULSET
+# Architect: Ali Hasanifard
+# ==============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus-kv-headless
+  labels:
+    app: nexus-kv
+spec:
+  clusterIP: None
+  ports:
+    - port: 6379
+      name: client-resp
+    - port: 9001
+      name: raft-peer
+  selector:
+    app: nexus-kv
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nexus-kv
+spec:
+  serviceName: "nexus-kv-headless"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nexus-kv
+  template:
+    metadata:
+      labels:
+        app: nexus-kv
+    spec:
+      containers:
+        - name: nexus-node
+          image: alihasanifard/nexus-kv:latest
+          ports:
+            - containerPort: 6379
+              name: resp
+            - containerPort: 9001
+              name: raft
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /nexus-data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 20Gi

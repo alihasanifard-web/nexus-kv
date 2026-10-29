@@ -30,6 +30,8 @@ impl NexusEngine {
             return RespValue::Error("Empty command".to_string());
         }
 
+        crate::metrics::Metrics::inc_op();
+
         let cmd_name = match &cmd[0] {
             RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_uppercase(),
             RespValue::SimpleString(s) => s.to_uppercase(),
@@ -40,6 +42,7 @@ impl NexusEngine {
             "PING" => RespValue::SimpleString("PONG".to_string()),
 
             "SET" => {
+                crate::metrics::Metrics::inc_write();
                 if cmd.len() < 3 {
                     return RespValue::Error("ERR wrong number of arguments for 'set' command".to_string());
                 }
@@ -84,6 +87,7 @@ impl NexusEngine {
             }
 
             "GET" => {
+                crate::metrics::Metrics::inc_read();
                 if cmd.len() < 2 {
                     return RespValue::Error("ERR wrong number of arguments for 'get' command".to_string());
                 }
@@ -141,6 +145,56 @@ impl NexusEngine {
             "FLUSHALL" => {
                 let _ = self.storage.flush();
                 RespValue::SimpleString("OK".to_string())
+            }
+
+            "KEYS" => {
+                let pattern = if cmd.len() > 1 {
+                    match &cmd[1] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => "*".to_string(),
+                    }
+                } else {
+                    "*".to_string()
+                };
+
+                match self.storage.keys(&pattern) {
+                    Ok(matched_keys) => {
+                        let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
+                        RespValue::Array(Some(elements))
+                    }
+                    Err(e) => RespValue::Error(format!("Storage error: {}", e)),
+                }
+            }
+
+            "SCAN" => {
+                let pattern = if cmd.len() > 2 {
+                    match &cmd[2] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => "*".to_string(),
+                    }
+                } else {
+                    "*".to_string()
+                };
+
+                match self.storage.keys(&pattern) {
+                    Ok(matched_keys) => {
+                        let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
+                        // Standard Redis SCAN format: [cursor, [keys...]]
+                        RespValue::Array(Some(vec![
+                            RespValue::BulkString(Some(b"0".to_vec())), // 0 cursor indicates end of scan
+                            RespValue::Array(Some(elements)),
+                        ]))
+                    }
+                    Err(e) => RespValue::Error(format!("Storage error: {}", e)),
+                }
+            }
+
+            "METRICS" => {
+                let term = self.raft.state.read().current_term;
+                let mem_bytes = self.storage.memtable.size();
+                let sst_count = self.storage.sstables.read().len();
+                let raw_metrics = crate::metrics::Metrics::render_prometheus(self.raft.id, term, mem_bytes, sst_count);
+                RespValue::BulkString(Some(raw_metrics.into_bytes()))
             }
 
             _ => RespValue::Error(format!("ERR unknown command '{}'", cmd_name)),

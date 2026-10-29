@@ -36,11 +36,11 @@ impl Default for LsmConfig {
 }
 
 pub struct LsmEngine {
-    config: LsmConfig,
-    memtable: Arc<MemTable>,
-    wal: Arc<RwLock<WriteAheadLog>>,
-    sstables: Arc<RwLock<Vec<SSTable>>>, // Newest SSTable at index 0
-    next_sst_id: AtomicU64,
+    pub config: LsmConfig,
+    pub memtable: Arc<MemTable>,
+    pub wal: Arc<RwLock<WriteAheadLog>>,
+    pub sstables: Arc<RwLock<Vec<SSTable>>>, // Newest SSTable at index 0
+    pub next_sst_id: AtomicU64,
 }
 
 impl LsmEngine {
@@ -215,6 +215,59 @@ impl LsmEngine {
         }
 
         Ok(())
+    }
+
+    /// Range scan over keys, merging MemTable and all SSTables (tombstones filtered out)
+    pub fn scan(&self, start: Option<&[u8]>, end: Option<&[u8]>) -> std::io::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        use std::collections::BTreeMap;
+        let mut merged: BTreeMap<Vec<u8>, Option<Vec<u8>>> = BTreeMap::new();
+
+        // 1. Read SSTables from oldest to newest
+        let ssts = self.sstables.read();
+        for sst in ssts.iter().rev() {
+            let entries = sst.scan_range(start, end)?;
+            for (k, v) in entries {
+                merged.insert(k, v);
+            }
+        }
+
+        // 2. Overlay MemTable (newest mutations)
+        let mem_entries = self.memtable.scan_range(start, end);
+        for (k, v) in mem_entries {
+            merged.insert(k, v);
+        }
+
+        // 3. Filter out tombstones
+        let active = merged.into_iter().filter_map(|(k, v)| v.map(|val| (k, val))).collect();
+        Ok(active)
+    }
+
+    /// Match keys by wildcard pattern (e.g. "user:*" or "*")
+    pub fn keys(&self, pattern: &str) -> std::io::Result<Vec<Vec<u8>>> {
+        let all = self.scan(None, None)?;
+        let is_wildcard_all = pattern == "*";
+        let prefix = if pattern.ends_with('*') {
+            &pattern[..pattern.len() - 1]
+        } else {
+            pattern
+        };
+
+        let matches = all.into_iter()
+            .map(|(k, _)| k)
+            .filter(|k| {
+                if is_wildcard_all {
+                    return true;
+                }
+                let k_str = String::from_utf8_lossy(k);
+                if pattern.ends_with('*') {
+                    k_str.starts_with(prefix)
+                } else {
+                    k_str == pattern
+                }
+            })
+            .collect();
+
+        Ok(matches)
     }
 }
 

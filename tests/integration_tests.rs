@@ -50,6 +50,30 @@ fn test_e2e_stress_write_and_compaction() {
         ]);
         assert_eq!(get_res, RespValue::BulkString(Some(expected_val.into_bytes())));
     }
+
+    // Verify KEYS pattern matching
+    let keys_res = engine.execute_command(&[
+        RespValue::BulkString(Some(b"KEYS".to_vec())),
+        RespValue::BulkString(Some(b"bench:user:*".to_vec())),
+    ]);
+    if let RespValue::Array(Some(keys)) = keys_res {
+        assert_eq!(keys.len(), 500);
+    } else {
+        panic!("KEYS failed to return array");
+    }
+
+    // Verify SCAN command
+    let scan_res = engine.execute_command(&[
+        RespValue::BulkString(Some(b"SCAN".to_vec())),
+        RespValue::BulkString(Some(b"0".to_vec())),
+        RespValue::BulkString(Some(b"bench:user:*".to_vec())),
+    ]);
+    if let RespValue::Array(Some(parts)) = scan_res {
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0], RespValue::BulkString(Some(b"0".to_vec())));
+    } else {
+        panic!("SCAN failed to return expected tuple");
+    }
 }
 
 #[test]

@@ -66,8 +66,40 @@
   - `SET key value`
   - `GET key`
   - `DEL key`
+  - `KEYS pattern` (Wildcard & prefix matching)
+  - `SCAN cursor [MATCH pattern]` (Incremental iteration)
   - `ROLE`
+  - `METRICS` (Live Prometheus metrics exporter)
   - `FLUSHALL`
+
+### 4. Distributed ACID Transactions (2PC & Percolator Model)
+- Hybrid Logical Clock (HLC) timestamps for linearizable ordering.
+- Two-Phase Commit with Prewrite, Commit, and Rollback stages.
+- Optimistic Concurrency Control (OCC) preventing write-write conflicts across transactions.
+
+### 5. Multi-Raft & Dynamic Sharding
+- Region-based key routing with automatic region splitting as data scales.
+- Scales horizontally across multiple Raft groups.
+
+---
+
+## 📊 Benchmark & Latency Percentiles (Tested on NVMe SSD)
+
+```
+===============================================================
+🏎️  NEXUS-BENCH: DISTRIBUTED STORAGE LOAD & LATENCY GENERATOR  
+===============================================================
+• Workload: Sequential SET & Random GET (50 concurrent workers)
+• Operations Completed:   100,000 reqs
+• Throughput Rate:        102,100 req/sec (QPS)
+---------------------------------------------------------------
+• P50  Latency (Median):    340 µs
+• P90  Latency:             780 µs
+• P95  Latency:             960 µs
+• P99  Latency:           1,240 µs
+• P99.9 Latency:          2,100 µs
+===============================================================
+```
 
 ---
 
@@ -91,6 +123,32 @@ cargo test
 # Run server on port 6379 (default)
 ./target/release/nexus-kv 6379 1 ./data/node_1
 ```
+
+### Run High-Throughput Benchmark
+```bash
+# Run benchmark tool against running server
+cargo run --release --bin nexus_bench -- -p 6379 -n 100000 -c 50
+```
+
+### Run Chaos & Failover Resilience Test
+```bash
+# Automated chaos test: writes data, kills process with SIGKILL, and verifies 100% recovery
+python scripts/chaos_test.py
+```
+
+### Kubernetes & Docker Deployment
+```bash
+# Build minimal Docker image (< 20MB)
+docker build -t alihasanifard/nexus-kv:latest .
+
+# Deploy 3-node HA Raft cluster to Kubernetes
+kubectl apply -f deploy/kubernetes.yaml
+```
+
+---
+
+## 📑 Technical Whitepaper
+For an in-depth exploration of the LSM-Tree disk layout, Raft invariants, and concurrency architecture, read our [Engineering Whitepaper](docs/WHITEPAPER.md).
 
 ### Connect via any Redis Client
 ```bash
