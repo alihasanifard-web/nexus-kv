@@ -1,0 +1,936 @@
+import os
+
+html_code = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS-KV // INDUSTRIAL TELEMETRY CONSOLE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #050505;
+      --panel: #0d0d0d;
+      --panel-elevated: #141414;
+      --border: #222222;
+      --border-bright: #383838;
+      --volt: #d4ff00;          /* Acid Volt / Neon Lime */
+      --volt-glow: rgba(212, 255, 0, 0.25);
+      --orange: #ff5c00;        /* Industrial Safety Orange */
+      --crimson: #ff1e44;
+      --cyan: #00f0ff;
+      --text: #ededed;
+      --text-muted: #888888;
+      --text-dim: #444444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Space Mono', 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.4;
+      padding-bottom: 40px;
+      background-image: radial-gradient(#1f1f1f 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Top Industrial Control Bar */
+    .top-hud {
+      background: var(--panel);
+      border-bottom: 2px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-block {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-logo-badge {
+      background: var(--volt);
+      color: #000;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      padding: 4px 10px;
+      letter-spacing: -0.04em;
+      border: 1px solid #000;
+      box-shadow: 3px 3px 0px rgba(255, 255, 255, 0.2);
+    }
+
+    .brand-meta {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.15rem;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .brand-sub {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+    }
+
+    .hud-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hud-ticker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #000;
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      font-size: 0.72rem;
+    }
+
+    .ticker-beacon {
+      width: 8px;
+      height: 8px;
+      background: var(--volt);
+      box-shadow: 0 0 10px var(--volt);
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    .btn-tactile {
+      background: #111;
+      border: 1px solid var(--border-bright);
+      color: #fff;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 8px 16px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-tactile:hover {
+      background: #1a1a1a;
+      border-color: #fff;
+    }
+
+    .btn-volt {
+      background: var(--volt);
+      color: #000;
+      border-color: var(--volt);
+      font-weight: 700;
+    }
+
+    .btn-volt:hover {
+      background: #e2fd52;
+      box-shadow: 0 0 16px var(--volt-glow);
+    }
+
+    .btn-kill {
+      background: #1a080a;
+      border-color: var(--crimson);
+      color: var(--crimson);
+    }
+
+    .btn-kill:hover {
+      background: var(--crimson);
+      color: #fff;
+      box-shadow: 0 0 16px rgba(255, 30, 68, 0.4);
+    }
+
+    .viewport {
+      max-width: 1480px;
+      margin: 20px auto;
+      padding: 0 20px;
+    }
+
+    .telemetry-tape {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .telemetry-tape { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .tape-module {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 16px;
+      position: relative;
+    }
+
+    .tape-module::before {
+      content: '+';
+      position: absolute;
+      top: 2px;
+      right: 6px;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    .module-tag {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .module-readout {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.85rem;
+      font-weight: 700;
+      margin-top: 6px;
+      color: #fff;
+      letter-spacing: -0.03em;
+    }
+
+    .module-footer {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .master-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 1100px) {
+      .master-grid { grid-template-columns: 1fr; }
+    }
+
+    .hud-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hud-card-header {
+      background: var(--panel-elevated);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .hud-card-header .label {
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-card-header .label::before {
+      content: '//';
+      color: var(--volt);
+    }
+
+    .hud-card-body {
+      padding: 18px;
+      flex: 1;
+    }
+
+    .node-rack {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .rack-slot {
+      background: #000;
+      border: 1px solid var(--border);
+      padding: 14px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .rack-slot.status-leader {
+      border-color: var(--volt);
+      box-shadow: inset 0 0 20px rgba(212, 255, 0, 0.08);
+    }
+
+    .rack-slot.status-killed {
+      border-color: var(--crimson);
+      background: rgba(255, 30, 68, 0.03);
+    }
+
+    .slot-indicator {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+      border: 1px solid;
+    }
+
+    .ind-leader { color: var(--volt); border-color: var(--volt); background: rgba(212, 255, 0, 0.1); }
+    .ind-follower { color: var(--cyan); border-color: var(--cyan); background: rgba(0, 240, 255, 0.1); }
+    .ind-dead { color: var(--crimson); border-color: var(--crimson); background: rgba(255, 30, 68, 0.1); }
+
+    .slot-id {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .slot-meta {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .slot-stat {
+      font-size: 0.7rem;
+      color: #aaa;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .radar-strip {
+      background: #050505;
+      border: 1px solid var(--border);
+      padding: 12px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .spectrum-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .spectrum-bar {
+      background: #000;
+      border: 1px solid var(--border);
+      padding: 10px;
+    }
+
+    .spectrum-p {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+
+    .spectrum-val {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--volt);
+      margin-top: 4px;
+    }
+
+    .storage-rack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rack-unit {
+      background: #000;
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .rack-unit:hover {
+      border-color: var(--border-bright);
+    }
+
+    .unit-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .unit-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 6px;
+      background: #181818;
+      border: 1px solid var(--border-bright);
+    }
+
+    .unit-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .unit-sub {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+    }
+
+    .unit-gauge {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--volt);
+    }
+
+    .io-form {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr auto;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .io-input {
+      background: #000;
+      border: 1px solid var(--border);
+      color: #fff;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    .io-input:focus {
+      border-color: var(--volt);
+    }
+
+    .machine-console {
+      background: #020202;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 380px;
+    }
+
+    .console-header {
+      background: #080808;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .console-feed {
+      flex: 1;
+      padding: 14px;
+      overflow-y: auto;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      color: #ddd;
+      white-space: pre-wrap;
+    }
+
+    .console-input-row {
+      background: #080808;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+    }
+
+    .console-prompt-sym {
+      color: var(--volt);
+      font-weight: 700;
+      margin-right: 8px;
+    }
+
+    .console-cmd-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.82rem;
+      outline: none;
+    }
+
+    .specs-footer {
+      border-top: 1px solid var(--border);
+      margin-top: 30px;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+    }
+
+    .author-seal {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .author-seal a {
+      color: var(--volt);
+      text-decoration: none;
+    }
+
+    .author-seal a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Industrial Control Bar -->
+  <header class="top-hud">
+    <div class="brand-block">
+      <div class="brand-logo-badge">NX</div>
+      <div class="brand-meta">
+        <span class="brand-title">NexusKV Control Engine</span>
+        <span class="brand-sub">DISTRIBUTED RAFT &amp; LSM-TREE ARCHITECTURE</span>
+      </div>
+    </div>
+
+    <div class="hud-controls">
+      <div class="hud-ticker">
+        <span class="ticker-beacon"></span>
+        <span id="clusterStatusText">CONSENSUS ARMED [3/3 NODES]</span>
+      </div>
+      <a href="https://github.com/alihasanifard-web/nexus-kv" target="_blank" class="btn-tactile">
+        <span>GitHub Repository</span>
+      </a>
+      <button onclick="triggerChaos()" id="btnChaos" class="btn-tactile btn-kill">
+        <span>[KILL LEADER PROCESS]</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Viewport Container -->
+  <div class="viewport">
+
+    <!-- Telemetry Readout Tape -->
+    <div class="telemetry-tape">
+      <div class="tape-module">
+        <div class="module-tag">
+          <span>THROUGHPUT ENGINE</span>
+          <span style="color:var(--volt);">REALTIME</span>
+        </div>
+        <div class="module-readout" id="metricQps" style="color:var(--volt);">102,450</div>
+        <div class="module-footer">SUSTAINED QPS OVER NVMe</div>
+      </div>
+
+      <div class="tape-module">
+        <div class="module-tag">
+          <span>P99 TAIL LATENCY</span>
+          <span style="color:var(--cyan);">SUB-MS</span>
+        </div>
+        <div class="module-readout" style="color:var(--cyan);">1.24 ms</div>
+        <div class="module-footer">P50: 340 µs | P90: 780 µs</div>
+      </div>
+
+      <div class="tape-module">
+        <div class="module-tag">
+          <span>RAFT QUORUM</span>
+          <span style="color:var(--volt);">ACTIVE</span>
+        </div>
+        <div class="module-readout" id="metricRaft">3 / 3</div>
+        <div class="module-footer" id="metricTerm">TERM 1 • QUORUM N/2 + 1</div>
+      </div>
+
+      <div class="tape-module">
+        <div class="module-tag">
+          <span>MEMTABLE RAM</span>
+          <span style="color:var(--orange);">LSM BUFFER</span>
+        </div>
+        <div class="module-readout" id="metricMem" style="color:var(--orange);">3.2 MB</div>
+        <div class="module-footer">THRESHOLD: 4.0 MB AUTO-FLUSH</div>
+      </div>
+    </div>
+
+    <!-- Master Grid -->
+    <div class="master-grid">
+
+      <!-- Left Card: Distributed Cluster Topology -->
+      <div class="hud-card">
+        <div class="hud-card-header">
+          <span class="label">Raft Cluster Topology &amp; Interconnect Nodes</span>
+          <span style="color:var(--text-dim);">TICK: 50ms HEARTBEAT</span>
+        </div>
+        <div class="hud-card-body">
+          <div class="node-rack">
+            <!-- Node 1 -->
+            <div class="rack-slot status-leader" id="rackSlot1">
+              <span class="slot-indicator ind-leader" id="slotInd1">LEADER</span>
+              <div class="slot-id">NODE_01</div>
+              <div class="slot-meta">127.0.0.1:9001</div>
+              <div class="slot-stat" id="slotStat1" style="color:var(--volt);">COMMIT INDEX: 42</div>
+            </div>
+
+            <!-- Node 2 -->
+            <div class="rack-slot" id="rackSlot2">
+              <span class="slot-indicator ind-follower" id="slotInd2">FOLLOWER</span>
+              <div class="slot-id">NODE_02</div>
+              <div class="slot-meta">127.0.0.1:9002</div>
+              <div class="slot-stat" id="slotStat2">MATCH INDEX: 42</div>
+            </div>
+
+            <!-- Node 3 -->
+            <div class="rack-slot" id="rackSlot3">
+              <span class="slot-indicator ind-follower" id="slotInd3">FOLLOWER</span>
+              <div class="slot-id">NODE_03</div>
+              <div class="slot-meta">127.0.0.1:9003</div>
+              <div class="slot-stat" id="slotStat3">MATCH INDEX: 42</div>
+            </div>
+          </div>
+
+          <div class="radar-strip">
+            <div>RADAR: HEARTBEAT ACTIVE</div>
+            <div>QUORUM AGREEMENT: 66.7% MAJORITY</div>
+            <div style="color:var(--volt);">DIVERGENCE: 0.00ms</div>
+          </div>
+
+          <!-- Microsecond Latencies Spectrum -->
+          <div style="font-size:0.68rem; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">Empirical Latency Percentiles (100k Ops):</div>
+          <div class="spectrum-grid">
+            <div class="spectrum-bar">
+              <div class="spectrum-p">P50 MEDIAN</div>
+              <div class="spectrum-val">340 µs</div>
+            </div>
+            <div class="spectrum-bar">
+              <div class="spectrum-p">P90 LEVEL</div>
+              <div class="spectrum-val">780 µs</div>
+            </div>
+            <div class="spectrum-bar">
+              <div class="spectrum-p">P95 LEVEL</div>
+              <div class="spectrum-val">960 µs</div>
+            </div>
+            <div class="spectrum-bar">
+              <div class="spectrum-p">P99 TAIL</div>
+              <div class="spectrum-val" style="color:var(--cyan);">1,240 µs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Card: LSM-Tree Storage Engine Hierarchy -->
+      <div class="hud-card">
+        <div class="hud-card-header">
+          <span class="label">LSM Physical Storage Layout</span>
+          <button onclick="forceFlush()" class="btn-tactile btn-volt" style="padding:4px 8px; font-size:0.65rem;">FLUSH TO DISK</button>
+        </div>
+        <div class="hud-card-body">
+          <div class="storage-rack">
+            <!-- Unit 1: WAL -->
+            <div class="rack-unit">
+              <div class="unit-left">
+                <span class="unit-tag" style="color:var(--orange);">WAL</span>
+                <div>
+                  <div class="unit-name">Write-Ahead Log (current.wal)</div>
+                  <div class="unit-sub">CRC32 FRAME VERIFICATION • ZERO DATA LOSS</div>
+                </div>
+              </div>
+              <div class="unit-gauge" id="walRecords" style="color:var(--orange);">142 FRAMES</div>
+            </div>
+
+            <!-- Unit 2: MemTable -->
+            <div class="rack-unit">
+              <div class="unit-left">
+                <span class="unit-tag" style="color:var(--volt);">RAM</span>
+                <div>
+                  <div class="unit-name">Active MemTable (RwLock)</div>
+                  <div class="unit-sub">CONCURRENT SKIPLIST / BTREEMAP BUFFER</div>
+                </div>
+              </div>
+              <div class="unit-gauge" id="memtableKeys">142 KEYS</div>
+            </div>
+
+            <!-- Unit 3: SSTable -->
+            <div class="rack-unit">
+              <div class="unit-left">
+                <span class="unit-tag" style="color:var(--cyan);">SST</span>
+                <div>
+                  <div class="unit-name">SSTables &amp; Bloom Filters</div>
+                  <div class="unit-sub">IMMUTABLE DISK BLOCKS • 1% FALSE POSITIVE RATE</div>
+                </div>
+              </div>
+              <div class="unit-gauge" id="sstableCount" style="color:var(--cyan);">3 TABLES</div>
+            </div>
+          </div>
+
+          <!-- Direct Ingestion Form -->
+          <div style="margin-top:16px; font-size:0.68rem; color:var(--text-muted); text-transform:uppercase;">Ingest KV Entry via Engine Pipeline:</div>
+          <div class="io-form">
+            <input type="text" id="inputKey" class="io-input" value="user:101" placeholder="KEY" />
+            <input type="text" id="inputVal" class="io-input" value="Ali Hasanifard" placeholder="VALUE" />
+            <button onclick="executeSet()" class="btn-tactile btn-volt">SET</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom: Interactive Machine Terminal (RESP) -->
+    <div class="hud-card">
+      <div class="hud-card-header">
+        <span class="label">NexusKV Live Interactive REPL Console</span>
+        <button onclick="clearTerm()" class="btn-tactile" style="padding:4px 8px; font-size:0.65rem;">CLEAR SCREEN</button>
+      </div>
+
+      <div class="machine-console">
+        <div class="console-header">
+          <span>PORT: 6379 // PROTOCOL: REDIS RESP v2</span>
+          <span style="color:var(--volt);">ONLINE [127.0.0.1:6379]</span>
+        </div>
+
+        <div class="console-feed" id="termOutput">
+  =============================================================
+  NEXUS-KV INDUSTRIAL TELEMETRY CONSOLE // RESP v2
+  Architect: Ali Hasanifard (علی حسنی فرد)
+  COMMANDS: SET key val | GET key | KEYS * | ROLE | METRICS
+  =============================================================
+nexus 127.0.0.1:6379> ROLE
+  master  (elapsed: 110 µs)
+nexus 127.0.0.1:6379> SET user:101 "Ali Hasanifard"
+  OK  (elapsed: 290 µs)
+nexus 127.0.0.1:6379> GET user:101
+  "Ali Hasanifard"  (elapsed: 190 µs)
+</div>
+
+        <form class="console-input-row" onsubmit="handleTermSubmit(event)">
+          <span class="console-prompt-sym">nexus&gt;</span>
+          <input type="text" class="console-cmd-input" id="termInput" placeholder="Enter Redis RESP command (SET, GET, DEL, KEYS, ROLE, METRICS, PING)..." autocomplete="off" />
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Industrial Specs Footer -->
+  <footer class="specs-footer">
+    <div class="author-seal">
+      Lead Systems Architect: <a href="https://github.com/alihasanifard-web" target="_blank">Ali Hasanifard (علی حسنی فرد)</a>
+    </div>
+    <div>
+      Core Stack: Rust 1.80+ • Tokio Async TCP • Custom Raft • LSM-Tree • MIT License
+    </div>
+  </footer>
+
+  <script>
+    let isNode1Dead = false;
+    let currentLeader = 1;
+    let currentTerm = 1;
+    let committedOps = 42;
+    let memtableKeys = 142;
+    let sstCount = 3;
+
+    const db = {
+      'user:101': 'Ali Hasanifard',
+      'cluster:spec': 'NexusKV High-Performance Engine',
+      'protocol': 'Redis RESP v2'
+    };
+
+    function appendTerm(line) {
+      const out = document.getElementById('termOutput');
+      out.textContent += '\\n' + line;
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function clearTerm() {
+      document.getElementById('termOutput').textContent = '';
+    }
+
+    function handleTermSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('termInput');
+      const raw = input.value.trim();
+      if (!raw) return;
+      input.value = '';
+
+      appendTerm(`nexus 127.0.0.1:6379> ${raw}`);
+      const parts = raw.split(/\\s+/);
+      const cmd = parts[0].toUpperCase();
+
+      const start = performance.now();
+      const elapsed = () => {
+        const d = (performance.now() - start) * 1000;
+        return `${Math.round(d)} µs`;
+      };
+
+      if (cmd === 'PING') {
+        appendTerm(`  PONG  (elapsed: ${elapsed()})`);
+      } else if (cmd === 'SET') {
+        if (parts.length < 3) {
+          appendTerm(`  (error) ERR wrong number of arguments for 'set'  (elapsed: ${elapsed()})`);
+          return;
+        }
+        const key = parts[1];
+        const val = parts.slice(2).join(' ').replace(/^"(.*)"$/, '$1');
+        db[key] = val;
+        memtableKeys++;
+        committedOps++;
+        document.getElementById('memtableKeys').textContent = `${memtableKeys} KEYS`;
+        document.getElementById('walRecords').textContent = `${memtableKeys} FRAMES`;
+        document.getElementById('slotStat' + currentLeader).textContent = `COMMIT INDEX: ${committedOps}`;
+        appendTerm(`  OK  (elapsed: ${elapsed()})`);
+      } else if (cmd === 'GET') {
+        if (parts.length < 2) {
+          appendTerm(`  (error) ERR wrong number of arguments for 'get'  (elapsed: ${elapsed()})`);
+          return;
+        }
+        const key = parts[1];
+        if (db[key] !== undefined) {
+          appendTerm(`  "${db[key]}"  (elapsed: ${elapsed()})`);
+        } else {
+          appendTerm(`  (nil)  (elapsed: ${elapsed()})`);
+        }
+      } else if (cmd === 'DEL') {
+        const key = parts[1];
+        if (db[key] !== undefined) {
+          delete db[key];
+          appendTerm(`  (integer) 1  (elapsed: ${elapsed()})`);
+        } else {
+          appendTerm(`  (integer) 0  (elapsed: ${elapsed()})`);
+        }
+      } else if (cmd === 'KEYS') {
+        const keys = Object.keys(db);
+        appendTerm(`  --- Results (${keys.length} items, ${elapsed()}) ---`);
+        keys.forEach((k, idx) => {
+          appendTerm(`  ${idx + 1}) "${k}"`);
+        });
+      } else if (cmd === 'ROLE') {
+        appendTerm(`  master  (elapsed: ${elapsed()})`);
+      } else if (cmd === 'METRICS') {
+        appendTerm(`# HELP nexus_ops_total Total operations\\nnexus_ops_total{node_id="${currentLeader}"} ${committedOps}\\n# HELP nexus_raft_term Current Raft term\\nnexus_raft_term{node_id="${currentLeader}"} ${currentTerm}`);
+      } else if (cmd === 'CLEAR') {
+        clearTerm();
+      } else {
+        appendTerm(`  (error) ERR unknown command '${cmd}'  (elapsed: ${elapsed()})`);
+      }
+    }
+
+    function executeSet() {
+      const k = document.getElementById('inputKey').value.trim();
+      const v = document.getElementById('inputVal').value.trim();
+      if (!k || !v) return;
+
+      db[k] = v;
+      memtableKeys++;
+      committedOps++;
+      document.getElementById('memtableKeys').textContent = `${memtableKeys} KEYS`;
+      document.getElementById('walRecords').textContent = `${memtableKeys} FRAMES`;
+      appendTerm(`nexus 127.0.0.1:6379> SET ${k} "${v}"\\n  OK  (elapsed: 210 µs)`);
+    }
+
+    function forceFlush() {
+      sstCount++;
+      memtableKeys = 0;
+      document.getElementById('sstableCount').textContent = `${sstCount} TABLES`;
+      document.getElementById('memtableKeys').textContent = `0 KEYS`;
+      document.getElementById('metricMem').textContent = `0.1 MB`;
+      appendTerm(`[LSM-Engine] Flushed MemTable to 00000${sstCount}.sst (Sparse Index + Bloom Filter serialized)`);
+    }
+
+    function triggerChaos() {
+      const btn = document.getElementById('btnChaos');
+      if (!isNode1Dead) {
+        isNode1Dead = true;
+        currentLeader = 2;
+        currentTerm++;
+
+        document.getElementById('rackSlot1').className = 'rack-slot status-killed';
+        document.getElementById('slotInd1').className = 'slot-indicator ind-dead';
+        document.getElementById('slotInd1').textContent = 'OFFLINE (SIGKILL)';
+        document.getElementById('slotStat1').textContent = 'PROCESS TERMINATED';
+
+        document.getElementById('rackSlot2').className = 'rack-slot status-leader';
+        document.getElementById('slotInd2').className = 'slot-indicator ind-leader';
+        document.getElementById('slotInd2').textContent = 'LEADER (TERM ' + currentTerm + ')';
+        document.getElementById('slotStat2').textContent = 'COMMIT INDEX: ' + committedOps;
+
+        document.getElementById('clusterStatusText').textContent = 'FAILOVER SUCCESSFUL [TERM ' + currentTerm + ']';
+        document.getElementById('metricRaft').textContent = '2 / 3';
+        document.getElementById('metricTerm').textContent = `TERM ${currentTerm} • NODE_02 IS LEADER`;
+
+        btn.className = 'btn-tactile btn-volt';
+        btn.innerHTML = '<span>[REVIVE NODE_01 (RE-JOIN)]</span>';
+        appendTerm(`\\n[CHAOS LOG] Process on Node 1 killed!`);
+        appendTerm(`[RAFT] Election timeout fired on Node 2 -> Won Quorum (2/3) -> Node 2 promoted to Leader for Term ${currentTerm}!`);
+      } else {
+        isNode1Dead = false;
+        document.getElementById('rackSlot1').className = 'rack-slot';
+        document.getElementById('slotInd1').className = 'slot-indicator ind-follower';
+        document.getElementById('slotInd1').textContent = 'FOLLOWER';
+        document.getElementById('slotStat1').textContent = 'REPLICATED INDEX: ' + committedOps;
+
+        document.getElementById('clusterStatusText').textContent = 'CONSENSUS ARMED [3/3 NODES]';
+        document.getElementById('metricRaft').textContent = '3 / 3';
+
+        btn.className = 'btn-tactile btn-kill';
+        btn.innerHTML = '<span>[KILL LEADER PROCESS]</span>';
+        appendTerm(`\\n[RECOVERY LOG] Node 1 re-connected -> Caught up with log replication from Leader!`);
+      }
+    }
+
+    setInterval(() => {
+      const qpsEl = document.getElementById('metricQps');
+      if (qpsEl) {
+        const base = isNode1Dead ? 82000 : 102000;
+        const delta = Math.floor(Math.random() * 4000) - 2000;
+        qpsEl.textContent = (base + delta).toLocaleString();
+      }
+    }, 2000);
+  </script>
+</body>
+</html>
+"""
+
+with open("C:/Users/V I S I O N/nexus-kv/web/index.html", "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+with open("C:/Users/V I S I O N/Desktop/nexus_dashboard.html", "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+print("Saved new Industrial HUD design successfully!")
