@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cli2-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <g id="icon">
+    <!-- Dark Glass Shield -->
+    <rect x="80" y="80" width="352" height="352" rx="84" fill="#0a1219" stroke="#1b3040" stroke-width="14"/>
+
+    <!-- Command Prompt Arrow -->
+    <path d="M160 176 L236 248 L160 320" fill="none" stroke="url(#cli2-grad)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Terminal Cursor Block _ -->
+    <rect x="272" y="300" width="92" height="24" rx="10" fill="#38bdf8"/>
+
+    <!-- Terminal Window Top Dots -->
+    <circle cx="160" cy="128" r="8" fill="#ef4444"/>
+    <circle cx="188" cy="128" r="8" fill="#f59e0b"/>
+    <circle cx="216" cy="128" r="8" fill="#10b981"/>
+  </g>
+</svg>
