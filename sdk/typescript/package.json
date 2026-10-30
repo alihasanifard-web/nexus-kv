@@ -1,0 +1,29 @@
+{
+  "name": "nexus-kv",
+  "version": "0.1.0",
+  "description": "Official high-performance TypeScript/JavaScript client for NexusKV distributed storage engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node dist/test.js"
+  },
+  "keywords": [
+    "nexus-kv",
+    "database",
+    "redis",
+    "raft",
+    "lsm-tree",
+    "distributed-storage"
+  ],
+  "author": "Ali Hasanifard <hasanifardalipa@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alihasanifard-web/nexus-kv.git"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3"
+  }
+}
