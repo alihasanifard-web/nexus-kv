@@ -24,6 +24,18 @@ impl Metrics {
         METRIC_WRITES_TOTAL.fetch_add(1, Ordering::Relaxed);
     }
 
+    pub fn total_ops() -> u64 {
+        METRIC_OPS_TOTAL.load(Ordering::Relaxed)
+    }
+
+    pub fn read_ops() -> u64 {
+        METRIC_READS_TOTAL.load(Ordering::Relaxed)
+    }
+
+    pub fn write_ops() -> u64 {
+        METRIC_WRITES_TOTAL.load(Ordering::Relaxed)
+    }
+
     pub fn render_prometheus(node_id: u64, current_term: u64, memtable_bytes: usize, sstable_count: usize) -> String {
         let mut out = String::new();
 

@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 
 pub static GLOBAL_HLC: AtomicU64 = AtomicU64::new(1000);
 

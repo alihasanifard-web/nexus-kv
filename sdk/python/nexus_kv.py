@@ -147,6 +147,21 @@ class NexusClient:
         res = self._send_command("FLUSHALL")
         return res == "OK"
 
+    def expire(self, key: str, seconds: int) -> bool:
+        res = self._send_command("EXPIRE", key, str(seconds))
+        return res == 1
+
+    def ttl(self, key: str) -> int:
+        return int(self._send_command("TTL", key))
+
+    def persist(self, key: str) -> bool:
+        res = self._send_command("PERSIST", key)
+        return res == 1
+
+    def set_ex(self, key: str, value: str, seconds: int) -> bool:
+        res = self._send_command("SET", key, value, "EX", str(seconds))
+        return res == "OK"
+
     def close(self):
         if self._sock:
             try:

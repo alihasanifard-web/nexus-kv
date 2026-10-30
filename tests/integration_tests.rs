@@ -77,6 +77,73 @@ fn test_e2e_stress_write_and_compaction() {
 }
 
 #[test]
+fn test_ttl_expiration_and_multi_exec_atomic() {
+    let dir = tempdir().unwrap();
+    let config = LsmConfig {
+        dir: dir.path().to_path_buf(),
+        memtable_threshold_bytes: 4096,
+        compaction_threshold_ssts: 4,
+    };
+
+    let engine = NexusEngine::new(1, vec![], config).unwrap();
+    engine.raft.become_leader();
+
+    // 1. SET with EX expiration
+    let set_ex = engine.execute_command(&[
+        RespValue::BulkString(Some(b"SET".to_vec())),
+        RespValue::BulkString(Some(b"token:auth".to_vec())),
+        RespValue::BulkString(Some(b"jwt_secret_xyz".to_vec())),
+        RespValue::BulkString(Some(b"EX".to_vec())),
+        RespValue::BulkString(Some(b"1".to_vec())), // 1 second TTL
+    ]);
+    assert_eq!(set_ex, RespValue::SimpleString("OK".to_string()));
+
+    let ttl1 = engine.execute_command(&[
+        RespValue::BulkString(Some(b"TTL".to_vec())),
+        RespValue::BulkString(Some(b"token:auth".to_vec())),
+    ]);
+    assert_eq!(ttl1, RespValue::Integer(1));
+
+    // Wait 1.1s for expiration
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+
+    // Key must now be expired and return Nil
+    let get_expired = engine.execute_command(&[
+        RespValue::BulkString(Some(b"GET".to_vec())),
+        RespValue::BulkString(Some(b"token:auth".to_vec())),
+    ]);
+    assert_eq!(get_expired, RespValue::BulkString(None));
+
+    let ttl_expired = engine.execute_command(&[
+        RespValue::BulkString(Some(b"TTL".to_vec())),
+        RespValue::BulkString(Some(b"token:auth".to_vec())),
+    ]);
+    assert_eq!(ttl_expired, RespValue::Integer(-2));
+
+    // 2. MULTI / EXEC Atomicity
+    let mut session = nexus_kv::engine::ClientSession::default();
+    engine.execute_with_session(&mut session, &[RespValue::BulkString(Some(b"MULTI".to_vec()))]);
+    engine.execute_with_session(&mut session, &[
+        RespValue::BulkString(Some(b"SET".to_vec())),
+        RespValue::BulkString(Some(b"account:1".to_vec())),
+        RespValue::BulkString(Some(b"500".to_vec())),
+    ]);
+    engine.execute_with_session(&mut session, &[
+        RespValue::BulkString(Some(b"SET".to_vec())),
+        RespValue::BulkString(Some(b"account:2".to_vec())),
+        RespValue::BulkString(Some(b"1500".to_vec())),
+    ]);
+    let exec_res = engine.execute_with_session(&mut session, &[RespValue::BulkString(Some(b"EXEC".to_vec()))]);
+    assert_eq!(
+        exec_res,
+        RespValue::Array(Some(vec![
+            RespValue::SimpleString("OK".to_string()),
+            RespValue::SimpleString("OK".to_string())
+        ]))
+    );
+}
+
+#[test]
 fn test_distributed_raft_leader_failover_simulation() {
     // 3-node cluster
     let n1 = Arc::new(RaftNode::new(1, vec![2, 3]));

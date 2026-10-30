@@ -5,6 +5,12 @@ edition = "2021"
 authors = ["Ali Hasanifard <hasanifardalipa@gmail.com>"]
 description = "High-Performance Distributed Fault-Tolerant Key-Value Store with Custom Raft Consensus & LSM-Tree Engine"
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/alihasanifard-web/nexus-kv"
+homepage = "https://github.com/alihasanifard-web/nexus-kv"
+documentation = "https://docs.rs/nexus-kv"
+keywords = ["database", "raft", "lsm-tree", "distributed", "redis"]
+categories = ["database-implementations", "data-structures", "network-programming"]
 
 [dependencies]
 bytes = "1.6"

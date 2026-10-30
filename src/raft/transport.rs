@@ -18,6 +18,7 @@ use tokio::time::sleep;
 pub struct RaftTransport {
     pub node: Arc<RaftNode>,
     pub peer_addresses: Arc<HashMap<NodeId, String>>,
+    #[allow(dead_code)]
     connections: Arc<Mutex<HashMap<NodeId, TcpStream>>>,
 }
 

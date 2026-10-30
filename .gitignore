@@ -1,1 +1,7 @@
 /target
+data/
+*.egg-info/
+*.res
+*.rc
+*.whl
+dist/
