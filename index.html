@@ -541,6 +541,8 @@ nexus:6379> GET user:101
     let currentLeader = 1;
     let currentTerm = 1;
     let opsCount = 42;
+    let liveConnected = false;
+    let eventSource = null;
 
     const store = {
       'user:101': 'Ali Hasanifard',
@@ -557,6 +559,30 @@ nexus:6379> GET user:101
       document.getElementById('consoleOutput').textContent = '';
     }
 
+    // Auto-connect to live NexusKV SSE telemetry stream on port 7379
+    function connectLiveTelemetry() {
+      try {
+        const es = new EventSource("http://127.0.0.1:7379/api/events");
+        es.onmessage = function(e) {
+          try {
+            const data = JSON.parse(e.data);
+            liveConnected = true;
+            document.getElementById('clusterStatusText').textContent = `Live Connected (Node ${data.node_id} • ${data.role.toUpperCase()})`;
+            document.getElementById('nodeCommit1').textContent = data.commit_index;
+            document.getElementById('metricTerm').textContent = `Term ${data.term} • Realtime Telemetry`;
+            if (data.ops_total) {
+              opsCount = data.ops_total;
+            }
+          } catch(err) {}
+        };
+        es.onerror = function() {
+          liveConnected = false;
+          document.getElementById('clusterStatusText').textContent = "Cluster Standby / Interactive";
+        };
+      } catch(err) {}
+    }
+    connectLiveTelemetry();
+
     function handleConsoleSubmit(e) {
       e.preventDefault();
       const input = document.getElementById('consoleInput');
@@ -565,11 +591,30 @@ nexus:6379> GET user:101
       input.value = '';
 
       appendConsole(`nexus:6379> ${raw}`);
-      const parts = raw.split(/\s+/);
-      const cmd = parts[0].toUpperCase();
-
       const start = performance.now();
       const elapsed = () => `${Math.round((performance.now() - start) * 1000)} µs`;
+
+      if (liveConnected) {
+        fetch("http://127.0.0.1:7379/api/cmd", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: raw
+        })
+        .then(res => res.json())
+        .then(data => {
+          appendConsole(`${data.result} (${elapsed()})`);
+        })
+        .catch(() => {
+          localExec(raw, elapsed);
+        });
+      } else {
+        localExec(raw, elapsed);
+      }
+    }
+
+    function localExec(raw, elapsed) {
+      const parts = raw.split(/\s+/);
+      const cmd = parts[0].toUpperCase();
 
       if (cmd === 'PING') {
         appendConsole(`PONG (${elapsed()})`);
@@ -603,6 +648,14 @@ nexus:6379> GET user:101
         } else {
           appendConsole(`(integer) 0 (${elapsed()})`);
         }
+      } else if (cmd === 'EXPIRE' || cmd === 'PERSIST') {
+        appendConsole(`(integer) 1 (${elapsed()})`);
+      } else if (cmd === 'TTL') {
+        appendConsole(`(integer) 300 (${elapsed()})`);
+      } else if (cmd === 'MULTI' || cmd === 'DISCARD') {
+        appendConsole(`OK (${elapsed()})`);
+      } else if (cmd === 'EXEC') {
+        appendConsole(`1) OK\n2) "1" (${elapsed()})`);
       } else if (cmd === 'KEYS') {
         const keys = Object.keys(store);
         appendConsole(`1) ${keys.map(k => `"${k}"`).join('\n2) ')} (${elapsed()})`);
@@ -618,10 +671,28 @@ nexus:6379> GET user:101
       const v = document.getElementById('inputVal').value.trim();
       if (!k || !v) return;
 
-      store[k] = v;
-      opsCount++;
-      document.getElementById('nodeCommit' + currentLeader).textContent = opsCount;
-      appendConsole(`nexus:6379> SET ${k} "${v}"\nOK (210 µs)`);
+      if (liveConnected) {
+        fetch("http://127.0.0.1:7379/api/cmd", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: `SET ${k} "${v}"`
+        })
+        .then(res => res.json())
+        .then(data => {
+          appendConsole(`nexus:6379> SET ${k} "${v}"\n${data.result}`);
+        })
+        .catch(() => {
+          store[k] = v;
+          opsCount++;
+          document.getElementById('nodeCommit' + currentLeader).textContent = opsCount;
+          appendConsole(`nexus:6379> SET ${k} "${v}"\nOK (210 µs)`);
+        });
+      } else {
+        store[k] = v;
+        opsCount++;
+        document.getElementById('nodeCommit' + currentLeader).textContent = opsCount;
+        appendConsole(`nexus:6379> SET ${k} "${v}"\nOK (210 µs)`);
+      }
     }
 
     function triggerFailover() {
