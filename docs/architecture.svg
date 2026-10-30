@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090a0f"/>
+      <stop offset="100%" stop-color="#0f111a"/>
+    </linearGradient>
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141724"/>
+      <stop offset="100%" stop-color="#0d0f18"/>
+    </linearGradient>
+    <linearGradient id="indigo-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="cyan-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="orange-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+
+    <!-- Marker arrowheads -->
+    <marker id="arrow-indigo" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#6366f1" />
+    </marker>
+    <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#06b6d4" />
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f97316" />
+    </marker>
+  </defs>
+
+  <style>
+    .title { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; fill: #ffffff; letter-spacing: -0.5px; }
+    .subtitle { font-family: 'JetBrains Mono', monospace; font-size: 12px; fill: #64748b; font-weight: 500; }
+    .card-title { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; fill: #f8fafc; letter-spacing: 0.5px; }
+    .card-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #94a3b8; }
+    .pill { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; }
+    .flow-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: #94a3b8; font-weight: 600; }
+  </style>
+
+  <!-- Background Canvas -->
+  <rect width="1200" height="680" rx="16" fill="url(#bg-grad)" stroke="#1e2336" stroke-width="2"/>
+
+  <!-- Top Title Banner -->
+  <g transform="translate(48, 38)">
+    <text x="0" y="0" class="title">NEXUS-KV SYSTEM ARCHITECTURE</text>
+    <text x="0" y="20" class="subtitle">Distributed Raft Consensus &amp; LSM-Tree Storage Engine Architecture — Architect: Ali Hasanifard</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- LAYER 1: CLIENT LAYER                                    -->
+  <!-- ======================================================== -->
+  <g transform="translate(48, 90)">
+    <rect width="1104" height="90" rx="10" fill="url(#card-grad)" stroke="#262b42" stroke-width="1.5"/>
+    <text x="24" y="28" class="card-title">LAYER 01 // CLIENT APPLICATIONS &amp; SDK ECOSYSTEM</text>
+    <text x="24" y="46" class="card-sub">Standard Redis RESP Protocol (Port 6379) • TCP Streaming • Sub-millisecond Latencies</text>
+
+    <!-- Client Pills -->
+    <!-- Python SDK -->
+    <g transform="translate(24, 56)">
+      <rect width="180" height="24" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+      <text x="12" y="16" class="pill" fill="#38bdf8">🐍 Python Driver (sdk/python)</text>
+    </g>
+    <!-- Go SDK -->
+    <g transform="translate(216, 56)">
+      <rect width="170" height="24" rx="6" fill="#1e293b" stroke="#00ADD8" stroke-width="1"/>
+      <text x="12" y="16" class="pill" fill="#00ADD8">🐹 Go Driver (sdk/go)</text>
+    </g>
+    <!-- TypeScript SDK -->
+    <g transform="translate(398, 56)">
+      <rect width="190" height="24" rx="6" fill="#1e293b" stroke="#3178C6" stroke-width="1"/>
+      <text x="12" y="16" class="pill" fill="#60a5fa">📘 TypeScript SDK (sdk/ts)</text>
+    </g>
+    <!-- Interactive CLI -->
+    <g transform="translate(600, 56)">
+      <rect width="170" height="24" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="1"/>
+      <text x="12" y="16" class="pill" fill="#34d399">💻 nexus-cli (Interactive)</text>
+    </g>
+    <!-- Standard Redis Clients -->
+    <g transform="translate(782, 56)">
+      <rect width="160" height="24" rx="6" fill="#1e293b" stroke="#f43f5e" stroke-width="1"/>
+      <text x="12" y="16" class="pill" fill="#fda4af">⚡ redis-cli / ioredis</text>
+    </g>
+    <!-- Benchmark -->
+    <g transform="translate(954, 56)">
+      <rect width="126" height="24" rx="6" fill="#1e293b" stroke="#f97316" stroke-width="1"/>
+      <text x="12" y="16" class="pill" fill="#fb923c">🏎️ 102k QPS Bench</text>
+    </g>
+  </g>
+
+  <!-- Flow Arrow: Layer 1 to Layer 2 -->
+  <line x1="600" y1="180" x2="600" y2="216" stroke="#06b6d4" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arrow-cyan)"/>
+  <rect x="520" y="190" width="160" height="18" rx="4" fill="#090a0f" stroke="#262b42" stroke-width="1"/>
+  <text x="600" y="202" text-anchor="middle" class="flow-label">TCP STREAM // RESP v2/v3</text>
+
+  <!-- ======================================================== -->
+  <!-- LAYER 2: ASYNC PROTOCOL & ROUTER LAYER                   -->
+  <!-- ======================================================== -->
+  <g transform="translate(48, 222)">
+    <rect width="1104" height="96" rx="10" fill="url(#card-grad)" stroke="#262b42" stroke-width="1.5"/>
+    <text x="24" y="28" class="card-title">LAYER 02 // TOKIO ASYNC RUNTIME &amp; PROTOCOL ENGINE</text>
+    <text x="24" y="46" class="card-sub">Zero-Copy BytesMut Buffer • Non-blocking Event-Driven I/O • Expiration Tracker &amp; Multi/Exec Pipeline</text>
+
+    <!-- Submodules -->
+    <g transform="translate(24, 56)">
+      <rect width="250" height="28" rx="6" fill="#111827" stroke="#4f46e5" stroke-width="1"/>
+      <text x="14" y="18" class="pill" fill="#a5b4fc">RESP Parser &amp; Frame Codec</text>
+    </g>
+    <g transform="translate(286, 56)">
+      <rect width="260" height="28" rx="6" fill="#111827" stroke="#059669" stroke-width="1"/>
+      <text x="14" y="18" class="pill" fill="#6ee7b7">TTL Expiration Registry (Instant)</text>
+    </g>
+    <g transform="translate(558, 56)">
+      <rect width="250" height="28" rx="6" fill="#111827" stroke="#d97706" stroke-width="1"/>
+      <text x="14" y="18" class="pill" fill="#fde68a">MULTI/EXEC Atomic Session State</text>
+    </g>
+    <g transform="translate(820, 56)">
+      <rect width="260" height="28" rx="6" fill="#111827" stroke="#0284c7" stroke-width="1"/>
+      <text x="14" y="18" class="pill" fill="#7dd3fc">HTTP/SSE Realtime Telemetry Server</text>
+    </g>
+  </g>
+
+  <!-- Flow Arrows: Split to Raft & Storage -->
+  <!-- Left Split to Raft -->
+  <path d="M 360 318 L 360 354" fill="none" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow-indigo)"/>
+  <rect x="270" y="326" width="180" height="18" rx="4" fill="#090a0f" stroke="#262b42" stroke-width="1"/>
+  <text x="360" y="338" text-anchor="middle" class="flow-label">PROPOSE COMMAND (WRITE)</text>
+
+  <!-- Right Split to Local LSM Read -->
+  <path d="M 840 318 L 840 354" fill="none" stroke="#f97316" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <rect x="760" y="326" width="160" height="18" rx="4" fill="#090a0f" stroke="#262b42" stroke-width="1"/>
+  <text x="840" y="338" text-anchor="middle" class="flow-label">DIRECT READ (GET / SCAN)</text>
+
+  <!-- ======================================================== -->
+  <!-- LAYER 3: DISTRIBUTED RAFT & LSM-TREE ENGINES             -->
+  <!-- ======================================================== -->
+
+  <!-- LEFT BOX: RAFT DISTRIBUTED CONSENSUS -->
+  <g transform="translate(48, 360)">
+    <rect width="536" height="274" rx="10" fill="url(#card-grad)" stroke="#4f46e5" stroke-width="1.5"/>
+    <text x="24" y="28" class="card-title">LAYER 03A // DISTRIBUTED RAFT CONSENSUS CORE</text>
+    <text x="24" y="46" class="card-sub">Quorum Majority Agreement (N/2 + 1) • Randomized Election Timers</text>
+
+    <!-- 3 Cluster Nodes Representation -->
+    <g transform="translate(24, 60)">
+      <!-- Node 1 (Leader) -->
+      <rect x="0" y="0" width="150" height="80" rx="8" fill="#131525" stroke="#6366f1" stroke-width="2"/>
+      <circle cx="16" cy="18" r="5" fill="#6366f1"/>
+      <text x="28" y="22" class="card-title" font-size="11">NODE 01 (LEADER)</text>
+      <text x="14" y="44" class="card-sub" font-size="10">Port: 9001</text>
+      <text x="14" y="60" class="pill" fill="#a5b4fc" font-size="9">Commit Index: 42</text>
+
+      <!-- Node 2 (Follower) -->
+      <rect x="168" y="0" width="150" height="80" rx="8" fill="#0b0e17" stroke="#262b42" stroke-width="1.5"/>
+      <circle cx="184" cy="18" r="5" fill="#38bdf8"/>
+      <text x="196" y="22" class="card-title" font-size="11">NODE 02 (REPLICA)</text>
+      <text x="182" y="44" class="card-sub" font-size="10">Port: 9002</text>
+      <text x="182" y="60" class="pill" fill="#94a3b8" font-size="9">Match Index: 42</text>
+
+      <!-- Node 3 (Follower) -->
+      <rect x="336" y="0" width="150" height="80" rx="8" fill="#0b0e17" stroke="#262b42" stroke-width="1.5"/>
+      <circle cx="352" cy="18" r="5" fill="#38bdf8"/>
+      <text x="364" y="22" class="card-title" font-size="11">NODE 03 (REPLICA)</text>
+      <text x="350" y="44" class="card-sub" font-size="10">Port: 9003</text>
+      <text x="350" y="60" class="pill" fill="#94a3b8" font-size="9">Match Index: 42</text>
+    </g>
+
+    <!-- Invariants Checklist -->
+    <g transform="translate(24, 156)">
+      <rect width="488" height="96" rx="6" fill="#0a0c14" stroke="#1f2438" stroke-width="1"/>
+      <text x="16" y="24" class="pill" fill="#818cf8">✔ Leader Append-Only &amp; Log Matching Property</text>
+      <text x="16" y="44" class="pill" fill="#818cf8">✔ Log Compaction &amp; InstallSnapshot RPC (§7)</text>
+      <text x="16" y="64" class="pill" fill="#818cf8">✔ Heartbeats (50ms) &amp; Automated Failover</text>
+      <text x="16" y="84" class="pill" fill="#818cf8">✔ 2PC Distributed Transactions with Hybrid Logical Clocks</text>
+    </g>
+  </g>
+
+  <!-- RIGHT BOX: LSM-TREE PHYSICAL STORAGE -->
+  <g transform="translate(616, 360)">
+    <rect width="536" height="274" rx="10" fill="url(#card-grad)" stroke="#f97316" stroke-width="1.5"/>
+    <text x="24" y="28" class="card-title">LAYER 03B // LSM-TREE PHYSICAL STORAGE ENGINE</text>
+    <text x="24" y="46" class="card-sub">High-Throughput Concurrent Write Path • Low Write Amplification</text>
+
+    <!-- Storage Tiers -->
+    <!-- Tier 1: MemTable -->
+    <g transform="translate(24, 60)">
+      <rect width="488" height="52" rx="8" fill="#140f0c" stroke="#f97316" stroke-width="1.5"/>
+      <text x="16" y="22" class="card-title" font-size="12">MEMTABLE (RAM BUFFER)</text>
+      <text x="16" y="40" class="card-sub">Thread-safe RwLock BTreeMap • Size Threshold Auto-Flush (4MB)</text>
+      <rect x="360" y="14" width="112" height="24" rx="4" fill="#2d150b"/>
+      <text x="416" y="30" text-anchor="middle" class="pill" fill="#fb923c">MEMORY ONLY</text>
+    </g>
+
+    <!-- Tier 2: WAL -->
+    <g transform="translate(24, 122)">
+      <rect width="488" height="52" rx="8" fill="#120e0c" stroke="#ea580c" stroke-width="1"/>
+      <text x="16" y="22" class="card-title" font-size="12">WRITE-AHEAD LOG (current.wal)</text>
+      <text x="16" y="40" class="card-sub">Sequential Append • CRC32 Frame Verification • Zero-Loss Crash Recovery</text>
+      <rect x="360" y="14" width="112" height="24" rx="4" fill="#251108"/>
+      <text x="416" y="30" text-anchor="middle" class="pill" fill="#f97316">DURABLE DISK</text>
+    </g>
+
+    <!-- Tier 3: SSTables & Bloom Filter -->
+    <g transform="translate(24, 184)">
+      <rect width="488" height="68" rx="8" fill="#0d1017" stroke="#0284c7" stroke-width="1"/>
+      <text x="16" y="22" class="card-title" font-size="12">IMMUTABLE SSTables &amp; BLOOM FILTERS (*.sst)</text>
+      <text x="16" y="40" class="card-sub">Binary Sparse Block Index • Double-Hash Bloom (1% FPR) • Background Compactor</text>
+      <rect x="360" y="20" width="112" height="24" rx="4" fill="#082f49"/>
+      <text x="416" y="36" text-anchor="middle" class="pill" fill="#38bdf8">TIERED DISK</text>
+    </g>
+  </g>
+
+  <!-- Connective arrow from Raft Commit to Storage Ingestion -->
+  <path d="M 584 496 L 616 496" fill="none" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+</svg>

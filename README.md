@@ -32,31 +32,9 @@
 
 ## 🌟 Key Architecture & Highlights
 
-```
-                               +-----------------------------+
-                               |     Redis / RESP Client     |
-                               +--------------+--------------+
-                                              |
-                                     (RESP Protocol)
-                                              |
-                                              v
-                               +-----------------------------+
-                               |    Tokio Async TCP Server   |
-                               +--------------+--------------+
-                                              |
-                     +------------------------+------------------------+
-                     |                                                 |
-                     v                                                 v
-      +-----------------------------+                   +-----------------------------+
-      |    Distributed Raft Core    |                   |    Local LSM Storage Engine |
-      |                             |                   |                             |
-      |  • Quorum Replication       |                   |  • Thread-Safe MemTable     |
-      |  • Term & Election Timers   |                   |  • Write-Ahead Log (WAL)    |
-      |  • Heartbeats & Log Sync    |                   |  • Immutable SSTables       |
-      |  • Linearizable Consistency |                   |  • Optimal Bloom Filters    |
-      +-----------------------------+                   |  • Compaction & GC Engine   |
-                                                        +-----------------------------+
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="NexusKV System Architecture" width="100%">
+</p>
 
 ### 1. Log-Structured Merge-Tree (LSM-Tree) Engine
 - **In-Memory MemTable:** High-throughput sorted key-value store using `parking_lot::RwLock` for concurrent reads without global lock contention.
@@ -102,21 +80,9 @@
 
 ## 📊 Benchmark & Latency Percentiles (Tested on NVMe SSD)
 
-```
-===============================================================
-🏎️  NEXUS-BENCH: DISTRIBUTED STORAGE LOAD & LATENCY GENERATOR  
-===============================================================
-• Workload: Sequential SET & Random GET (50 concurrent workers)
-• Operations Completed:   100,000 reqs
-• Throughput Rate:        102,100 req/sec (QPS)
----------------------------------------------------------------
-• P50  Latency (Median):    340 µs
-• P90  Latency:             780 µs
-• P95  Latency:             960 µs
-• P99  Latency:           1,240 µs
-• P99.9 Latency:          2,100 µs
-===============================================================
-```
+<p align="center">
+  <img src="assets/demo.svg" alt="NexusKV Benchmark Execution Demo" width="100%">
+</p>
 
 ---
 

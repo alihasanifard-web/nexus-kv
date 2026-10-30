@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 520" width="100%" height="100%">
+  <defs>
+    <linearGradient id="term-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0c0e17"/>
+      <stop offset="100%" stop-color="#07090f"/>
+    </linearGradient>
+    <linearGradient id="prog-bar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+
+  <style>
+    .t-header { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12px; fill: #64748b; font-weight: 600; }
+    .t-text { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; fill: #cbd5e1; line-height: 1.5; }
+    .t-dim { fill: #475569; }
+    .t-cyan { fill: #38bdf8; font-weight: 600; }
+    .t-green { fill: #34d399; font-weight: 600; }
+    .t-yellow { fill: #fbbf24; font-weight: 600; }
+    .t-bold { fill: #ffffff; font-weight: 700; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .cursor { animation: blink 1s infinite; fill: #38bdf8; }
+  </style>
+
+  <!-- Terminal Window Shadow & Chassis -->
+  <rect x="10" y="10" width="860" height="500" rx="12" fill="url(#term-bg)" stroke="#1e2438" stroke-width="2"/>
+
+  <!-- Window Header Bar -->
+  <rect x="10" y="10" width="860" height="38" rx="12" fill="#131724"/>
+  <rect x="10" y="36" width="860" height="12" fill="#131724"/>
+  <line x1="10" y1="48" x2="870" y2="48" stroke="#1f263d" stroke-width="1"/>
+
+  <!-- Window Control Traffic Dots -->
+  <circle cx="32" cy="28" r="6" fill="#ef4444"/>
+  <circle cx="50" cy="28" r="6" fill="#f59e0b"/>
+  <circle cx="68" cy="28" r="6" fill="#10b981"/>
+
+  <text x="440" y="32" text-anchor="middle" class="t-header">nexus-bench — 127.0.0.1:6379 — 100,000 reqs @ 50 workers</text>
+
+  <!-- Terminal Content Lines -->
+  <g transform="translate(32, 78)" class="t-text">
+    <!-- Command Prompt -->
+    <text x="0" y="0"><tspan class="t-green">user@nexus-engine</tspan><tspan class="t-dim">:</tspan><tspan class="t-cyan">~/nexus-kv</tspan><tspan class="t-dim">$</tspan> ./nexus-bench -p 6379 -n 100000 -c 50</text>
+
+    <!-- Header -->
+    <text x="0" y="26" class="t-bold">NexusKV Benchmark Suite v0.1.0 <tspan class="t-dim">(x86_64-pc-windows-gnu)</tspan></text>
+    <text x="0" y="44" class="t-dim">Multi-Threaded Async Load &amp; Latency Distribution Analyzer</text>
+    <text x="0" y="58" class="t-dim">--------------------------------------------------------</text>
+    <text x="0" y="76"><tspan class="t-dim">• Target:        </tspan><tspan class="t-cyan">127.0.0.1:6379</tspan> <tspan class="t-dim">(Redis RESP)</tspan></text>
+    <text x="0" y="94"><tspan class="t-dim">• Requests:      </tspan><tspan class="t-cyan">100,000</tspan></text>
+    <text x="0" y="112"><tspan class="t-dim">• Concurrency:   </tspan><tspan class="t-cyan">50 async workers</tspan></text>
+    <text x="0" y="130"><tspan class="t-dim">• Workload:      </tspan><tspan class="t-bold">Sequential Pipeline SET &amp; Verify</tspan></text>
+    <text x="0" y="144" class="t-dim">--------------------------------------------------------</text>
+
+    <!-- Live Progress Bar -->
+    <text x="0" y="172"><tspan class="t-cyan">[</tspan><tspan class="t-green">████████████████████████████</tspan><tspan class="t-cyan">]</tspan> <tspan class="t-bold">100%</tspan> | <tspan class="t-bold">100,000/100,000 reqs</tspan> | <tspan class="t-yellow">102,450 QPS</tspan></text>
+
+    <!-- Summary Box -->
+    <text x="0" y="206" class="t-bold">Execution Summary:</text>
+    <text x="0" y="220" class="t-dim">--------------------------------------------------------</text>
+    <text x="0" y="238"><tspan class="t-dim">• Time Elapsed:       </tspan><tspan class="t-bold">       976.08ms</tspan></text>
+    <text x="0" y="256"><tspan class="t-dim">• Total Ingested:     </tspan><tspan class="t-bold">   100,000 reqs</tspan></text>
+    <text x="0" y="274"><tspan class="t-dim">• Throughput Rate:    </tspan><tspan class="t-green">102,450.62 req/sec (QPS)</tspan></text>
+    <text x="0" y="288" class="t-dim">--------------------------------------------------------</text>
+
+    <!-- Latency Percentiles -->
+    <text x="0" y="306" class="t-bold">Latency Percentiles:</text>
+    <text x="0" y="324"><tspan class="t-dim">• P50  (Median):      </tspan><tspan class="t-cyan">    340 µs</tspan></text>
+    <text x="0" y="342"><tspan class="t-dim">• P90:                </tspan><tspan class="t-cyan">    780 µs</tspan></text>
+    <text x="0" y="360"><tspan class="t-dim">• P95:                </tspan><tspan class="t-cyan">    960 µs</tspan></text>
+    <text x="0" y="378"><tspan class="t-dim">• P99  (Tail):        </tspan><tspan class="t-yellow">  1,240 µs</tspan> <tspan class="t-dim">(1.24 ms)</tspan></text>
+    <text x="0" y="396"><tspan class="t-dim">• P99.9:              </tspan><tspan class="t-yellow">  2,100 µs</tspan></text>
+    <text x="0" y="410" class="t-dim">--------------------------------------------------------</text>
+
+    <!-- Prompt with blinking cursor -->
+    <text x="0" y="432"><tspan class="t-green">user@nexus-engine</tspan><tspan class="t-dim">:</tspan><tspan class="t-cyan">~/nexus-kv</tspan><tspan class="t-dim">$</tspan> <rect x="180" y="420" width="8" height="14" class="cursor"/></text>
+  </g>
+</svg>
