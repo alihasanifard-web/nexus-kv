@@ -40,9 +40,26 @@ pub struct AppendEntriesReply {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallSnapshotArgs {
+    pub term: u64,
+    pub leader_id: NodeId,
+    pub last_included_index: u64,
+    pub last_included_term: u64,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallSnapshotReply {
+    pub term: u64,
+    pub bytes_stored: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RaftMessage {
     RequestVote(RequestVoteArgs),
     RequestVoteResponse(RequestVoteReply),
     AppendEntries(AppendEntriesArgs),
     AppendEntriesResponse(AppendEntriesReply),
+    InstallSnapshot(InstallSnapshotArgs),
+    InstallSnapshotResponse(InstallSnapshotReply),
 }

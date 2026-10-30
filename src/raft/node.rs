@@ -141,6 +141,51 @@ impl RaftNode {
         }
     }
 
+    /// Handle incoming InstallSnapshot RPC (Raft §7 Log Compaction)
+    pub fn handle_install_snapshot(&self, args: &InstallSnapshotArgs) -> InstallSnapshotReply {
+        let mut state = self.state.write();
+        let mut log = self.log.write();
+
+        // 1. Reply immediately if term < current_term
+        if args.term < state.current_term {
+            return InstallSnapshotReply {
+                term: state.current_term,
+                bytes_stored: 0,
+            };
+        }
+
+        // 2. If term > current_term, step down to Follower
+        if args.term > state.current_term || state.role != NodeRole::Follower {
+            state.current_term = args.term;
+            state.role = NodeRole::Follower;
+            state.voted_for = None;
+        }
+        state.leader_id = Some(args.leader_id);
+
+        // 3. Compact log up through snapshot's last_included_index
+        log.compact_up_to(args.last_included_index, args.last_included_term);
+
+        // 4. Update commit index to snapshot index
+        state.commit_index = state.commit_index.max(args.last_included_index);
+
+        InstallSnapshotReply {
+            term: state.current_term,
+            bytes_stored: args.data.len(),
+        }
+    }
+
+    /// Construct an InstallSnapshot message for a lagging follower
+    pub fn create_install_snapshot(&self, last_included_index: u64, last_included_term: u64, data: Vec<u8>) -> InstallSnapshotArgs {
+        let state = self.state.read();
+        InstallSnapshotArgs {
+            term: state.current_term,
+            leader_id: self.id,
+            last_included_index,
+            last_included_term,
+            data,
+        }
+    }
+
     /// Promote to Candidate and construct RequestVoteArgs
     pub fn start_election(&self) -> (RequestVoteArgs, usize) {
         let mut state = self.state.write();
@@ -307,5 +352,29 @@ mod tests {
         let committed = node1.handle_peer_append_reply(2, &reply_n2);
         assert!(committed);
         assert_eq!(node1.state.read().commit_index, 1);
+
+        // 6. Test Log Compaction & InstallSnapshot
+        for i in 2..=10 {
+            node1.propose(RaftCommand::Put {
+                key: format!("k{}", i).into_bytes(),
+                value: format!("v{}", i).into_bytes(),
+            }).unwrap();
+        }
+        assert_eq!(node1.log.read().len(), 10);
+
+        // Leader creates a snapshot at index 8 and compacts its log
+        node1.log.write().compact_up_to(8, 1);
+        assert_eq!(node1.log.read().last_included_index, 8);
+        assert_eq!(node1.log.read().len(), 2); // only entries 9 and 10 remain
+
+        // Lagging follower (Node 3) receives InstallSnapshot
+        let snapshot_data = b"state_machine_kv_dump".to_vec();
+        let snap_msg = node1.create_install_snapshot(8, 1, snapshot_data);
+        let snap_reply = node3.handle_install_snapshot(&snap_msg);
+
+        assert_eq!(snap_reply.term, 1);
+        assert_eq!(snap_reply.bytes_stored, 21);
+        assert_eq!(node3.state.read().commit_index, 8);
+        assert_eq!(node3.log.read().last_included_index, 8);
     }
 }

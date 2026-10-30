@@ -1,8 +1,15 @@
 # ⚡ NexusKV — Distributed Raft & LSM-Tree Storage Engine
 
+[![Live Demo](https://img.shields.io/badge/Demo-GitHub%20Pages-brightgreen.svg)](https://alihasanifard-web.github.io/nexus-kv/)
 [![CI](https://github.com/alihasanifard-web/nexus-kv/actions/workflows/ci.yml/badge.svg)](https://github.com/alihasanifard-web/nexus-kv/actions)
+[![Crates.io](https://img.shields.io/badge/crates.io-v0.1.0-orange.svg)](https://crates.io/crates/nexus-kv)
+[![PyPI: nexus-kv](https://img.shields.io/badge/PyPI-nexus--kv-blue.svg)](https://pypi.org/project/nexus-kv/)
+[![Go: sdk/go](https://img.shields.io/badge/Go-sdk%2Fgo-00ADD8.svg)](sdk/go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+
+🌐 **Try the Live Interactive Dashboard & Telemetry Cockpit Online:**  
+👉 **[https://alihasanifard-web.github.io/nexus-kv/](https://alihasanifard-web.github.io/nexus-kv/)**
 
 ```
     ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗██╗  ██╗██╗   ██╗
@@ -65,18 +72,24 @@
 - Leader failover: cluster automatically elects a new leader and resumes operations if the primary node goes offline.
 
 ### 3. Redis RESP Wire Protocol Compatibility
-- Direct out-of-the-box compatibility with existing tools (`redis-cli`, Python `redis-py`, Node.js `ioredis`, Go `go-redis`):
+- Direct out-of-the-box compatibility with standard tools (`redis-cli`, Python `redis-py`, Node.js `ioredis`, Go `go-redis`):
   - `PING` / `PONG`
-  - `SET key value`
+  - `SET key value [EX seconds]`
   - `GET key`
   - `DEL key`
+  - `EXPIRE key seconds` & `TTL key` & `PERSIST key`
+  - `MULTI`, `EXEC`, `DISCARD` (Atomic transactions)
   - `KEYS pattern` (Wildcard & prefix matching)
   - `SCAN cursor [MATCH pattern]` (Incremental iteration)
   - `ROLE`
   - `METRICS` (Live Prometheus metrics exporter)
   - `FLUSHALL`
 
-### 4. Distributed ACID Transactions (2PC & Percolator Model)
+### 4. Raft Log Compaction & Snapshotting (Raft §7)
+- Embedded snapshot engine truncates logs at specified index/term boundaries.
+- `InstallSnapshot` RPC allows lagging followers to instantly catch up without replaying massive log histories.
+
+### 5. Distributed ACID Transactions (2PC & Percolator Model)
 - Hybrid Logical Clock (HLC) timestamps for linearizable ordering.
 - Two-Phase Commit with Prewrite, Commit, and Rollback stages.
 - Optimistic Concurrency Control (OCC) preventing write-write conflicts across transactions.
@@ -167,15 +180,37 @@ nexus 127.0.0.1:6379> ROLE
   master  (elapsed: 110 µs)
 ```
 
-### Python SDK Usage
+### 1-Click Local 3-Node Cluster Launcher
+```bash
+# On Windows, simply double-click start-cluster.bat or run:
+scripts/start-cluster.bat
+
+# Stops all background cluster instances:
+scripts/stop-cluster.bat
+```
+
+### Official Go Driver (`sdk/go`)
+```go
+import nexus "github.com/alihasanifard-web/nexus-kv/sdk/go"
+
+client, _ := nexus.NewClient("127.0.0.1:6379")
+defer client.Close()
+
+_ = client.Set(ctx, "user:101", "Ali Hasanifard")
+val, found, _ := client.Get(ctx, "user:101")
+_ = client.SetEx(ctx, "session:token", "jwt_xyz", 300) // TTL 300s
+```
+
+### Official Python Driver (`sdk/python`)
 ```python
 from nexus_kv import NexusClient
 
 with NexusClient(host="127.0.0.1", port=6379) as client:
     client.set("user:name", "Ali Hasanifard")
+    client.set_ex("token:auth", "secret", seconds=300)
+    print("TTL:", client.ttl("token:auth"))
     print(client.get("user:name"))       # "Ali Hasanifard"
     print(client.keys("user:*"))         # ["user:name"]
-    print(client.delete("user:name"))    # True
 ```
 
 ### Connect via any Standard Redis Client
