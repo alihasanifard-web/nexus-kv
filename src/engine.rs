@@ -369,7 +369,7 @@ impl NexusEngine {
                     }
                     Err(None) => {
                         // Single-node mode or election in progress: apply directly if standalone
-                        if self.raft.peers.is_empty() {
+                        if self.raft.peers.read().is_empty() {
                             if let Err(e) = self.storage.put(&key, &val) {
                                 return RespValue::Error(format!("Storage error: {}", e));
                             }
@@ -428,7 +428,7 @@ impl NexusEngine {
                         RespValue::Error(format!("MOVED to leader node {}", leader_id))
                     }
                     Err(None) => {
-                        if self.raft.peers.is_empty() {
+                        if self.raft.peers.read().is_empty() {
                             let _ = self.storage.delete(&key);
                             RespValue::Integer(1)
                         } else {
@@ -516,8 +516,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:") || s.starts_with("__geo__:") || s.starts_with("__ratelimit__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:") || pattern.starts_with("__geo__:") || pattern.starts_with("__ratelimit__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         RespValue::Array(Some(elements))
@@ -540,8 +540,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:") || s.starts_with("__geo__:") || s.starts_with("__ratelimit__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:") || pattern.starts_with("__geo__:") || pattern.starts_with("__ratelimit__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         // Standard Redis SCAN format: [cursor, [keys...]]
@@ -613,7 +613,7 @@ impl NexusEngine {
                 s.push_str(&format!("sstable_count:{}\r\n", sst_count));
                 s.push_str("\r\n# Replication\r\n");
                 s.push_str(&format!("role:{}\r\n", role_str));
-                s.push_str(&format!("connected_slaves:{}\r\n", self.raft.peers.len()));
+                s.push_str(&format!("connected_slaves:{}\r\n", self.raft.peers.read().len()));
                 s.push_str(&format!("raft_current_term:{}\r\n", term));
                 s.push_str(&format!("raft_commit_index:{}\r\n", commit_idx));
                 s.push_str("\r\n# Stats\r\n");
@@ -1205,6 +1205,275 @@ impl NexusEngine {
                 }
             }
 
+            // Geospatial Engine (GEOADD, GEODIST, GEORADIUS)
+            "GEOADD" => {
+                if cmd.len() < 5 || (cmd.len() - 2) % 3 != 0 {
+                    return RespValue::Error("ERR wrong number of arguments for 'geoadd' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+
+                let mut added = 0;
+                let mut i = 2;
+                while i < cmd.len() {
+                    let lon = match &cmd[i] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<f64>().unwrap_or(0.0),
+                        _ => return RespValue::Error("Invalid longitude".to_string()),
+                    };
+                    let lat = match &cmd[i + 1] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<f64>().unwrap_or(0.0),
+                        _ => return RespValue::Error("Invalid latitude".to_string()),
+                    };
+                    let member = match &cmd[i + 2] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => return RespValue::Error("Invalid member".to_string()),
+                    };
+
+                    if !(-180.0..=180.0).contains(&lon) || !(-90.0..=90.0).contains(&lat) {
+                        return RespValue::Error("ERR coordinates out of range".to_string());
+                    }
+
+                    let internal_key = format!("__geo__:{}:{}", key_str, member).into_bytes();
+                    if let Ok(None) = self.storage.get(&internal_key) {
+                        added += 1;
+                    }
+                    let val = format!("{},{}", lon, lat).into_bytes();
+                    let _ = self.storage.put(&internal_key, &val);
+                    i += 3;
+                }
+                RespValue::Integer(added as i64)
+            }
+
+            "GEODIST" => {
+                if cmd.len() < 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'geodist' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let m1 = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid member 1".to_string()),
+                };
+                let m2 = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid member 2".to_string()),
+                };
+                let unit = cmd.get(4).map(|u| match u {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => "m".to_string(),
+                }).unwrap_or_else(|| "m".to_string());
+
+                let k1 = format!("__geo__:{}:{}", key_str, m1).into_bytes();
+                let k2 = format!("__geo__:{}:{}", key_str, m2).into_bytes();
+
+                let (p1, p2) = match (self.storage.get(&k1), self.storage.get(&k2)) {
+                    (Ok(Some(v1)), Ok(Some(v2))) => (v1, v2),
+                    _ => return RespValue::BulkString(None),
+                };
+
+                let parse_point = |b: &[u8]| -> Option<(f64, f64)> {
+                    let s = String::from_utf8_lossy(b);
+                    let mut parts = s.split(',');
+                    let lon = parts.next()?.parse::<f64>().ok()?;
+                    let lat = parts.next()?.parse::<f64>().ok()?;
+                    Some((lon, lat))
+                };
+
+                let (lon1, lat1) = match parse_point(&p1) {
+                    Some(p) => p,
+                    None => return RespValue::BulkString(None),
+                };
+                let (lon2, lat2) = match parse_point(&p2) {
+                    Some(p) => p,
+                    None => return RespValue::BulkString(None),
+                };
+
+                let dist_m = haversine_distance(lon1, lat1, lon2, lat2);
+                let converted = convert_distance_from_meters(dist_m, &unit);
+                RespValue::BulkString(Some(format!("{:.4}", converted).into_bytes()))
+            }
+
+            "GEORADIUS" => {
+                if cmd.len() < 5 {
+                    return RespValue::Error("ERR wrong number of arguments for 'georadius' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let center_lon = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<f64>().unwrap_or(0.0),
+                    _ => return RespValue::Error("Invalid longitude".to_string()),
+                };
+                let center_lat = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<f64>().unwrap_or(0.0),
+                    _ => return RespValue::Error("Invalid latitude".to_string()),
+                };
+                let radius_num = match &cmd[4] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<f64>().unwrap_or(0.0),
+                    _ => return RespValue::Error("Invalid radius".to_string()),
+                };
+
+                let mut unit = "m";
+                let mut with_dist = false;
+                for arg in &cmd[5..] {
+                    if let RespValue::BulkString(Some(b)) = arg {
+                        let s = String::from_utf8_lossy(b).to_lowercase();
+                        if s == "withdist" {
+                            with_dist = true;
+                        } else if s == "km" || s == "m" || s == "mi" || s == "ft" {
+                            unit = if s == "km" { "km" } else if s == "mi" { "mi" } else if s == "ft" { "ft" } else { "m" };
+                        }
+                    }
+                }
+
+                let max_meters = convert_distance_to_meters(radius_num, unit);
+                let prefix = format!("__geo__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                let mut matches: Vec<(String, f64)> = Vec::new();
+
+                if let Ok(keys) = self.storage.keys(&pattern) {
+                    for k in keys {
+                        let k_str = String::from_utf8_lossy(&k);
+                        if let Some(member) = k_str.strip_prefix(&prefix) {
+                            if let Ok(Some(raw)) = self.storage.get(&k) {
+                                let s = String::from_utf8_lossy(&raw);
+                                if let Some((lon_str, lat_str)) = s.split_once(',') {
+                                    if let (Ok(m_lon), Ok(m_lat)) = (lon_str.parse::<f64>(), lat_str.parse::<f64>()) {
+                                        let dist = haversine_distance(center_lon, center_lat, m_lon, m_lat);
+                                        if dist <= max_meters {
+                                            matches.push((member.to_string(), dist));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                matches.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+                let mut out = Vec::new();
+                for (member, dist_m) in matches {
+                    if with_dist {
+                        let converted = convert_distance_from_meters(dist_m, unit);
+                        out.push(RespValue::Array(Some(vec![
+                            RespValue::BulkString(Some(member.into_bytes())),
+                            RespValue::BulkString(Some(format!("{:.4}", converted).into_bytes())),
+                        ])));
+                    } else {
+                        out.push(RespValue::BulkString(Some(member.into_bytes())));
+                    }
+                }
+                RespValue::Array(Some(out))
+            }
+
+            // High-Speed Atomic Sliding-Window Rate Limiter
+            "RATELIMIT" => {
+                if cmd.len() < 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'ratelimit' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let max_reqs = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<usize>().unwrap_or(10),
+                    RespValue::Integer(i) => *i as usize,
+                    _ => 10,
+                };
+                let window_secs = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<u64>().unwrap_or(60),
+                    RespValue::Integer(i) => *i as u64,
+                    _ => 60,
+                };
+
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let window_ms = window_secs * 1000;
+                let cutoff_ms = now_ms.saturating_sub(window_ms);
+
+                let internal_key = format!("__ratelimit__:{}", key_str).into_bytes();
+                let mut timestamps: Vec<u64> = match self.storage.get(&internal_key) {
+                    Ok(Some(raw)) => bincode::deserialize(&raw).unwrap_or_default(),
+                    _ => Vec::new(),
+                };
+
+                timestamps.retain(|&ts| ts >= cutoff_ms);
+                let current_count = timestamps.len();
+
+                if current_count < max_reqs {
+                    timestamps.push(now_ms);
+                    if let Ok(raw) = bincode::serialize(&timestamps) {
+                        let _ = self.storage.put(&internal_key, &raw);
+                    }
+                    let remaining = (max_reqs - current_count - 1) as i64;
+                    RespValue::Array(Some(vec![
+                        RespValue::Integer(1), // Allowed
+                        RespValue::Integer(remaining),
+                        RespValue::Integer(window_secs as i64),
+                    ]))
+                } else {
+                    let oldest = timestamps.first().copied().unwrap_or(now_ms);
+                    let reset_secs = ((oldest + window_ms).saturating_sub(now_ms) / 1000) + 1;
+                    RespValue::Array(Some(vec![
+                        RespValue::Integer(0), // Blocked
+                        RespValue::Integer(0),
+                        RespValue::Integer(reset_secs as i64),
+                    ]))
+                }
+            }
+
+            // Dynamic Cluster Membership (CLUSTER MEET / CLUSTER NODES)
+            "CLUSTER" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'cluster' command".to_string());
+                }
+                let sub_cmd = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_uppercase(),
+                    _ => return RespValue::Error("Invalid cluster subcommand".to_string()),
+                };
+
+                match sub_cmd.as_str() {
+                    "MEET" => {
+                        if cmd.len() < 4 {
+                            return RespValue::Error("ERR wrong number of arguments for 'cluster meet' command".to_string());
+                        }
+                        let _ip = match &cmd[2] {
+                            RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                            _ => return RespValue::Error("Invalid IP".to_string()),
+                        };
+                        let port = match &cmd[3] {
+                            RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<u64>().unwrap_or(0),
+                            RespValue::Integer(i) => *i as u64,
+                            _ => return RespValue::Error("Invalid port".to_string()),
+                        };
+                        let target_node_id = if port >= 6379 { (port - 6378) as u64 } else { port };
+                        self.raft.add_peer(target_node_id);
+                        RespValue::SimpleString("OK".to_string())
+                    }
+                    "NODES" => {
+                        let self_id = self.raft.id;
+                        let role = match self.raft.state.read().role {
+                            NodeRole::Leader => "master",
+                            NodeRole::Follower => "slave",
+                            NodeRole::Candidate => "candidate",
+                        };
+                        let mut out = format!("{}-self 127.0.0.1:{} myself,{} 0 0 1 connected\n", self_id, 6378 + self_id, role);
+                        for peer_id in self.raft.peers.read().iter() {
+                            out.push_str(&format!("{}-node 127.0.0.1:{} slave 0 0 1 connected\n", peer_id, 6378 + peer_id));
+                        }
+                        RespValue::BulkString(Some(out.into_bytes()))
+                    }
+                    _ => RespValue::Error(format!("ERR unknown cluster subcommand '{}'", sub_cmd)),
+                }
+            }
+
             "METRICS" => {
                 let term = self.raft.state.read().current_term;
                 let mem_bytes = self.storage.memtable.size();
@@ -1215,6 +1484,37 @@ impl NexusEngine {
 
             _ => RespValue::Error(format!("ERR unknown command '{}'", cmd_name)),
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Geospatial Math Helpers (Haversine Spherical Distance Formula)
+// -----------------------------------------------------------------------------
+fn haversine_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
+    let r = 6_372_795.0; // Earth mean radius in meters
+    let dlat = (lat2 - lat1).to_radians();
+    let dlon = (lon2 - lon1).to_radians();
+    let a = (dlat / 2.0).sin().powi(2)
+        + lat1.to_radians().cos() * lat2.to_radians().cos() * (dlon / 2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+    r * c
+}
+
+fn convert_distance_from_meters(meters: f64, unit: &str) -> f64 {
+    match unit.to_lowercase().as_str() {
+        "km" => meters / 1000.0,
+        "mi" => meters / 1609.344,
+        "ft" => meters * 3.28084,
+        _ => meters,
+    }
+}
+
+fn convert_distance_to_meters(dist: f64, unit: &str) -> f64 {
+    match unit.to_lowercase().as_str() {
+        "km" => dist * 1000.0,
+        "mi" => dist * 1609.344,
+        "ft" => dist / 3.28084,
+        _ => dist,
     }
 }
 
@@ -1615,5 +1915,85 @@ mod tests {
         } else {
             panic!("Expected Integer count for RESTORE_DUMP");
         }
+
+        // Test Geospatial Engine (GEOADD, GEODIST, GEORADIUS)
+        let geoadd_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"GEOADD".to_vec())),
+            RespValue::BulkString(Some(b"tehran_fleet".to_vec())),
+            RespValue::BulkString(Some(b"51.3890".to_vec())),
+            RespValue::BulkString(Some(b"35.6892".to_vec())),
+            RespValue::BulkString(Some(b"driver_azadi".to_vec())),
+            RespValue::BulkString(Some(b"51.4200".to_vec())),
+            RespValue::BulkString(Some(b"35.7000".to_vec())),
+            RespValue::BulkString(Some(b"driver_enghelab".to_vec())),
+        ]);
+        assert_eq!(geoadd_res, RespValue::Integer(2));
+
+        let geodist_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"GEODIST".to_vec())),
+            RespValue::BulkString(Some(b"tehran_fleet".to_vec())),
+            RespValue::BulkString(Some(b"driver_azadi".to_vec())),
+            RespValue::BulkString(Some(b"driver_enghelab".to_vec())),
+            RespValue::BulkString(Some(b"km".to_vec())),
+        ]);
+        if let RespValue::BulkString(Some(b)) = geodist_res {
+            let s = String::from_utf8_lossy(&b);
+            let dist: f64 = s.parse().unwrap();
+            assert!(dist > 1.0 && dist < 10.0);
+        } else {
+            panic!("Expected BulkString for GEODIST");
+        }
+
+        let georadius_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"GEORADIUS".to_vec())),
+            RespValue::BulkString(Some(b"tehran_fleet".to_vec())),
+            RespValue::BulkString(Some(b"51.3890".to_vec())),
+            RespValue::BulkString(Some(b"35.6892".to_vec())),
+            RespValue::BulkString(Some(b"5".to_vec())),
+            RespValue::BulkString(Some(b"km".to_vec())),
+        ]);
+        if let RespValue::Array(Some(drivers)) = georadius_res {
+            assert!(!drivers.is_empty());
+        } else {
+            panic!("Expected Array for GEORADIUS");
+        }
+
+        // Test Native Atomic Rate Limiter (RATELIMIT)
+        let rl1 = engine.execute_command(&[
+            RespValue::BulkString(Some(b"RATELIMIT".to_vec())),
+            RespValue::BulkString(Some(b"user:login:127.0.0.1".to_vec())),
+            RespValue::BulkString(Some(b"2".to_vec())),
+            RespValue::BulkString(Some(b"10".to_vec())),
+        ]);
+        assert_eq!(rl1, RespValue::Array(Some(vec![RespValue::Integer(1), RespValue::Integer(1), RespValue::Integer(10)])));
+
+        let rl2 = engine.execute_command(&[
+            RespValue::BulkString(Some(b"RATELIMIT".to_vec())),
+            RespValue::BulkString(Some(b"user:login:127.0.0.1".to_vec())),
+            RespValue::BulkString(Some(b"2".to_vec())),
+            RespValue::BulkString(Some(b"10".to_vec())),
+        ]);
+        assert_eq!(rl2, RespValue::Array(Some(vec![RespValue::Integer(1), RespValue::Integer(0), RespValue::Integer(10)])));
+
+        let rl3 = engine.execute_command(&[
+            RespValue::BulkString(Some(b"RATELIMIT".to_vec())),
+            RespValue::BulkString(Some(b"user:login:127.0.0.1".to_vec())),
+            RespValue::BulkString(Some(b"2".to_vec())),
+            RespValue::BulkString(Some(b"10".to_vec())),
+        ]);
+        if let RespValue::Array(Some(arr)) = rl3 {
+            assert_eq!(arr[0], RespValue::Integer(0)); // Blocked
+        } else {
+            panic!("Expected Array for RATELIMIT");
+        }
+
+        // Test CLUSTER MEET
+        let meet_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"CLUSTER".to_vec())),
+            RespValue::BulkString(Some(b"MEET".to_vec())),
+            RespValue::BulkString(Some(b"127.0.0.1".to_vec())),
+            RespValue::BulkString(Some(b"6382".to_vec())),
+        ]);
+        assert_eq!(meet_res, RespValue::SimpleString("OK".to_string()));
     }
 }

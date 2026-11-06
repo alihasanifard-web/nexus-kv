@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 pub struct RaftNode {
     pub id: NodeId,
-    pub peers: Vec<NodeId>,
+    pub peers: RwLock<Vec<NodeId>>,
     pub state: RwLock<RaftState>,
     pub log: RwLock<RaftLog>,
     // Volatile state on leaders: next index to send to each peer, match index
@@ -23,11 +23,22 @@ impl RaftNode {
     pub fn new(id: NodeId, peers: Vec<NodeId>) -> Self {
         Self {
             id,
-            peers,
+            peers: RwLock::new(peers),
             state: RwLock::new(RaftState::new()),
             log: RwLock::new(RaftLog::new()),
             next_index: RwLock::new(HashMap::new()),
             match_index: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Dynamically add a new peer to the Raft cluster
+    pub fn add_peer(&self, peer_id: NodeId) -> bool {
+        let mut peers = self.peers.write();
+        if !peers.contains(&peer_id) {
+            peers.push(peer_id);
+            true
+        } else {
+            false
         }
     }
 
@@ -216,7 +227,7 @@ impl RaftNode {
         let mut next_idx = self.next_index.write();
         let mut match_idx = self.match_index.write();
 
-        for peer in &self.peers {
+        for peer in self.peers.read().iter() {
             next_idx.insert(*peer, last_log + 1);
             match_idx.insert(*peer, 0);
         }
@@ -279,7 +290,7 @@ impl RaftNode {
             self.match_index.write().insert(peer_id, reply.match_index);
 
             // Check if commit_index can be advanced (quorum agreement)
-            let total_nodes = self.peers.len() + 1;
+            let total_nodes = self.peers.read().len() + 1;
             let majority = total_nodes / 2 + 1;
 
             let log = self.log.read();

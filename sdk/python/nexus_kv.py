@@ -281,6 +281,40 @@ class NexusClient:
             args.append(path)
         return int(str(self._send_command(*args)))
 
+    # Geospatial (GIS) Engine
+    def geoadd(self, key: str, *items: tuple[float, float, str]) -> int:
+        args = ["GEOADD", key]
+        for lon, lat, member in items:
+            args.extend([str(lon), str(lat), member])
+        return int(str(self._send_command(*args)))
+
+    def geodist(self, key: str, member1: str, member2: str, unit: str = "m") -> float | None:
+        res = self._send_command("GEODIST", key, member1, member2, unit)
+        return float(str(res)) if res is not None else None
+
+    def georadius(self, key: str, lon: float, lat: float, radius: float, unit: str = "m", with_dist: bool = False) -> list[str | list[str]]:
+        args = ["GEORADIUS", key, str(lon), str(lat), str(radius), unit]
+        if with_dist:
+            args.append("WITHDIST")
+        res = self._send_command(*args)
+        return res if isinstance(res, list) else []
+
+    # High-Speed Atomic Sliding-Window Rate Limiter
+    def ratelimit(self, key: str, max_requests: int, window_seconds: int) -> dict[str, int | bool]:
+        res = self._send_command("RATELIMIT", key, str(max_requests), str(window_seconds))
+        if isinstance(res, list) and len(res) >= 3:
+            return {
+                "allowed": res[0] == 1,
+                "remaining": int(str(res[1])),
+                "reset_seconds": int(str(res[2])),
+            }
+        return {"allowed": False, "remaining": 0, "reset_seconds": window_seconds}
+
+    # Dynamic Cluster Membership
+    def cluster_meet(self, ip: str, port: int) -> bool:
+        res = self._send_command("CLUSTER", "MEET", ip, str(port))
+        return res == "OK"
+
     def close(self):
         if self._sock:
             try:

@@ -306,7 +306,7 @@ fn get_telemetry_json(engine: &NexusEngine) -> String {
         "ops_total": total_ops,
         "write_ops": write_ops,
         "read_ops": read_ops,
-        "peers_count": engine.raft.peers.len() + 1
+        "peers_count": engine.raft.peers.read().len() + 1
     }).to_string()
 }
 

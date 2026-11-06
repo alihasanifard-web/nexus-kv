@@ -116,7 +116,8 @@ impl RaftTransport {
                 match role {
                     NodeRole::Leader => {
                         // Leader sends periodic Heartbeats to all peers
-                        for &peer_id in &transport.node.peers {
+                        let peers_list = transport.node.peers.read().clone();
+                        for peer_id in peers_list {
                             let t = transport.clone();
                             let heartbeat = transport.node.create_heartbeat(peer_id);
                             let msg = RaftMessage::AppendEntries(heartbeat);
@@ -136,11 +137,12 @@ impl RaftTransport {
 
                         // Check if we should trigger election
                         let (vote_args, mut votes_won) = transport.node.start_election();
-                        let total_nodes = transport.node.peers.len() + 1;
+                        let peers_list = transport.node.peers.read().clone();
+                        let total_nodes = peers_list.len() + 1;
                         let majority = total_nodes / 2 + 1;
 
                         let msg = RaftMessage::RequestVote(vote_args);
-                        for &peer_id in &transport.node.peers {
+                        for peer_id in peers_list {
                             let t = transport.clone();
                             let req = msg.clone();
                             if let Ok(RaftMessage::RequestVoteResponse(reply)) = t.send_message(peer_id, &req).await {

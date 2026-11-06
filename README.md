@@ -57,6 +57,9 @@
   - **Sorted Sets (ZSET):** `ZADD`, `ZRANGE [WITHSCORES]`, `ZSCORE`, `ZCARD`, `ZREM`
   - **Lists & FIFO Queues:** `LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LLEN`, `LRANGE`
   - **Sets & Secondary Indexes:** `SADD`, `SMEMBERS`, `SREM`, `SCARD`, `SISMEMBER`
+  - **Geospatial (GIS):** `GEOADD`, `GEODIST`, `GEORADIUS` (Spherical Haversine distance engine)
+  - **Atomic Rate Limiter:** `RATELIMIT key max_requests window_seconds` (Sliding-window API protection)
+  - **Dynamic Clustering:** `CLUSTER MEET ip port`, `CLUSTER NODES` (Zero-downtime peer expansion)
   - **Pub/Sub Broker:** `PUBLISH channel message`, `SUBSCRIBE channel [channel ...]`
   - **Security & Info:** `AUTH password` (via `--requirepass`), `INFO` (Redis server telemetry)
   - **Point-in-Time Dumps & Recovery:** `SAVE`, `BGSAVE`, `LASTSAVE`, `RESTORE_DUMP`
