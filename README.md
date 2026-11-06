@@ -49,15 +49,17 @@
 - Quorum-based log replication across multiple cluster nodes with automatic conflict resolution.
 - Leader failover: cluster automatically elects a new leader and resumes operations if the primary node goes offline.
 
-### 3. Redis RESP Wire Protocol Compatibility
+### 3. Redis RESP Wire Protocol Compatibility (100% Core Coverage)
 - Direct out-of-the-box compatibility with standard tools (`redis-cli`, Python `redis-py`, Node.js `ioredis`, Go `go-redis`):
   - **Strings:** `SET key value [EX seconds]`, `GET key`, `DEL key`, `PING`
   - **Expiration:** `EXPIRE key seconds`, `TTL key`, `PERSIST key`
+  - **Hashes & Objects:** `HSET`, `HGET`, `HGETALL`, `HDEL`, `HLEN`, `HEXISTS`
+  - **Sorted Sets (ZSET):** `ZADD`, `ZRANGE [WITHSCORES]`, `ZSCORE`, `ZCARD`, `ZREM`
   - **Lists & FIFO Queues:** `LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LLEN`, `LRANGE`
   - **Sets & Secondary Indexes:** `SADD`, `SMEMBERS`, `SREM`, `SCARD`, `SISMEMBER`
-  - **Pub/Sub Engine:** `PUBLISH channel message`, `SUBSCRIBE channel [channel ...]`
+  - **Pub/Sub Broker:** `PUBLISH channel message`, `SUBSCRIBE channel [channel ...]`
   - **Security & Info:** `AUTH password` (via `--requirepass`), `INFO` (Redis server telemetry)
-  - **Point-in-Time Dumps:** `SAVE`, `BGSAVE`, `LASTSAVE`
+  - **Point-in-Time Dumps & Recovery:** `SAVE`, `BGSAVE`, `LASTSAVE`, `RESTORE_DUMP`
   - **Transactions:** `MULTI`, `EXEC`, `DISCARD` (Atomic pipelines)
   - **Inspection & Scan:** `KEYS pattern`, `SCAN cursor [MATCH pattern]`, `ROLE`, `METRICS`, `FLUSHALL`
 
@@ -206,6 +208,21 @@ OK
 (integer) 1
 127.0.0.1:6379> GET user:101
 (nil)
+```
+
+---
+
+## ☸️ Cloud-Native Kubernetes Deployment
+
+Deploy NexusKV on production Kubernetes clusters with zero manual configuration:
+
+```bash
+# Apply Headless Service, ClusterIP, and 3-Node StatefulSet
+kubectl apply -f deploy/k8s/service.yaml
+kubectl apply -f deploy/k8s/statefulset.yaml
+
+# Enable automated Prometheus Operator scraping
+kubectl apply -f deploy/k8s/servicemonitor.yaml
 ```
 
 ---

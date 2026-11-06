@@ -19,7 +19,7 @@ class NexusConnectionError(NexusError):
 class NexusClient:
     """Official high-performance Python client for NexusKV distributed storage engine."""
 
-    def __init__(self, host="127.0.0.1", port=6379, timeout=3.0, auto_reconnect=True):
+    def __init__(self, host="127.0.0.1", port=6379, timeout=10.0, auto_reconnect=True):
         self.host = host
         self.port = port
         self.timeout = timeout
@@ -241,6 +241,30 @@ class NexusClient:
     def hexists(self, key: str, field: str) -> bool:
         return self._send_command("HEXISTS", key, field) == 1
 
+    # Sorted Sets (ZSET)
+    def zadd(self, key: str, mapping: dict[str, float]) -> int:
+        args = ["ZADD", key]
+        for member, score in mapping.items():
+            args.extend([str(score), member])
+        return int(str(self._send_command(*args)))
+
+    def zscore(self, key: str, member: str) -> float | None:
+        res = self._send_command("ZSCORE", key, member)
+        return float(str(res)) if res is not None else None
+
+    def zcard(self, key: str) -> int:
+        return int(str(self._send_command("ZCARD", key)))
+
+    def zrem(self, key: str, *members: str) -> int:
+        return int(str(self._send_command("ZREM", key, *members)))
+
+    def zrange(self, key: str, start: int = 0, stop: int = -1, with_scores: bool = False) -> list[str]:
+        args = ["ZRANGE", key, str(start), str(stop)]
+        if with_scores:
+            args.append("WITHSCORES")
+        res = self._send_command(*args)
+        return [str(x) for x in res] if isinstance(res, list) else []
+
     # Snapshots & Dumps
     def save(self) -> bool:
         return self._send_command("SAVE") == "OK"
@@ -250,6 +274,12 @@ class NexusClient:
 
     def lastsave(self) -> int:
         return int(str(self._send_command("LASTSAVE")))
+
+    def restore_dump(self, path: str | None = None) -> int:
+        args = ["RESTORE_DUMP"]
+        if path:
+            args.append(path)
+        return int(str(self._send_command(*args)))
 
     def close(self):
         if self._sock:

@@ -11,6 +11,7 @@ use crate::raft::node::RaftNode;
 use crate::raft::state::NodeRole;
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -129,6 +130,32 @@ impl NexusEngine {
                 .unwrap_or(0),
             Ordering::Relaxed,
         );
+        Ok(count)
+    }
+
+    /// Restore database state from a point-in-time snapshot dump
+    pub fn restore_dump(&self, path: Option<&Path>) -> std::io::Result<usize> {
+        let dump_path = match path {
+            Some(p) => p.to_path_buf(),
+            None => self.storage.config.dir.join("nexus.dump"),
+        };
+
+        if !dump_path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Dump file not found at {}", dump_path.display()),
+            ));
+        }
+
+        let raw = std::fs::read(&dump_path)?;
+        let dump_entries: Vec<(Vec<u8>, Vec<u8>)> = bincode::deserialize(&raw)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let count = dump_entries.len();
+        for (k, v) in dump_entries {
+            self.storage.put(&k, &v)?;
+        }
+        self.storage.flush()?;
         Ok(count)
     }
 
@@ -489,8 +516,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         RespValue::Array(Some(elements))
@@ -513,8 +540,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         // Standard Redis SCAN format: [cursor, [keys...]]
@@ -983,7 +1010,165 @@ impl NexusEngine {
                 RespValue::Integer(if exists { 1 } else { 0 })
             }
 
-            // Snapshotting & Persistence (SAVE / BGSAVE / LASTSAVE)
+            // Sorted Sets Data Structure Engine (ZADD, ZRANGE, ZSCORE, ZCARD, ZREM)
+            "ZADD" => {
+                if cmd.len() < 4 || (cmd.len() - 2) % 2 != 0 {
+                    return RespValue::Error("ERR wrong number of arguments for 'zadd' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+
+                let mut new_members = 0;
+                let mut i = 2;
+                while i < cmd.len() {
+                    let score_val = match &cmd[i] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<f64>().unwrap_or(0.0),
+                        _ => 0.0,
+                    };
+                    let member_bytes = match &cmd[i + 1] {
+                        RespValue::BulkString(Some(b)) => b.clone(),
+                        _ => return RespValue::Error("Invalid member".to_string()),
+                    };
+
+                    let member_str = String::from_utf8_lossy(&member_bytes);
+                    let internal_key = format!("__zset_score__:{}:{}", key_str, member_str).into_bytes();
+                    if let Ok(None) = self.storage.get(&internal_key) {
+                        new_members += 1;
+                    }
+                    let _ = self.storage.put(&internal_key, score_val.to_string().as_bytes());
+                    i += 2;
+                }
+                RespValue::Integer(new_members as i64)
+            }
+
+            "ZSCORE" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'zscore' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let member = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid member".to_string()),
+                };
+                let internal_key = format!("__zset_score__:{}:{}", key_str, member).into_bytes();
+                match self.storage.get(&internal_key) {
+                    Ok(Some(v)) => RespValue::BulkString(Some(v)),
+                    _ => RespValue::BulkString(None),
+                }
+            }
+
+            "ZCARD" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'zcard' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let prefix = format!("__zset_score__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                let count = self.storage.keys(&pattern).map(|k| k.len()).unwrap_or(0);
+                RespValue::Integer(count as i64)
+            }
+
+            "ZREM" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'zrem' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mut removed = 0;
+                for m_val in &cmd[2..] {
+                    let member = match m_val {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => continue,
+                    };
+                    let internal_key = format!("__zset_score__:{}:{}", key_str, member).into_bytes();
+                    if let Ok(Some(_)) = self.storage.get(&internal_key) {
+                        let _ = self.storage.delete(&internal_key);
+                        removed += 1;
+                    }
+                }
+                RespValue::Integer(removed as i64)
+            }
+
+            "ZRANGE" => {
+                if cmd.len() < 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'zrange' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let start_idx = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<i64>().unwrap_or(0),
+                    RespValue::Integer(i) => *i,
+                    _ => 0,
+                };
+                let stop_idx = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<i64>().unwrap_or(-1),
+                    RespValue::Integer(i) => *i,
+                    _ => -1,
+                };
+
+                let with_scores = cmd.get(4).map(|arg| match arg {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_uppercase() == "WITHSCORES",
+                    _ => false,
+                }).unwrap_or(false);
+
+                let prefix = format!("__zset_score__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                let mut entries: Vec<(Vec<u8>, f64)> = Vec::new();
+
+                if let Ok(keys) = self.storage.keys(&pattern) {
+                    for k in keys {
+                        let k_str = String::from_utf8_lossy(&k);
+                        if let Some(member) = k_str.strip_prefix(&prefix) {
+                            if let Ok(Some(score_raw)) = self.storage.get(&k) {
+                                let score_num = String::from_utf8_lossy(&score_raw).parse::<f64>().unwrap_or(0.0);
+                                entries.push((member.as_bytes().to_vec(), score_num));
+                            }
+                        }
+                    }
+                }
+
+                entries.sort_by(|a, b| {
+                    a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.0.cmp(&b.0))
+                });
+
+                let len = entries.len() as i64;
+                if len == 0 {
+                    return RespValue::Array(Some(vec![]));
+                }
+
+                let s = if start_idx < 0 { (len + start_idx).max(0) } else { start_idx };
+                let mut e = if stop_idx < 0 { (len + stop_idx).max(0) } else { stop_idx };
+
+                if s >= len || s > e {
+                    return RespValue::Array(Some(vec![]));
+                }
+                e = e.min(len - 1);
+
+                let slice = &entries[s as usize..=e as usize];
+                let mut result = Vec::new();
+                for (member, score) in slice {
+                    result.push(RespValue::BulkString(Some(member.clone())));
+                    if with_scores {
+                        result.push(RespValue::BulkString(Some(score.to_string().into_bytes())));
+                    }
+                }
+                RespValue::Array(Some(result))
+            }
+
+            // Snapshotting & Persistence (SAVE / BGSAVE / LASTSAVE / RESTORE_DUMP)
             "SAVE" => {
                 match self.save_dump() {
                     Ok(_) => RespValue::SimpleString("OK".to_string()),
@@ -1002,6 +1187,22 @@ impl NexusEngine {
             "LASTSAVE" => {
                 let ts = self.last_save_time.load(Ordering::Relaxed);
                 RespValue::Integer(ts as i64)
+            }
+
+            "RESTORE_DUMP" => {
+                let custom_path = if cmd.len() > 1 {
+                    match &cmd[1] {
+                        RespValue::BulkString(Some(b)) => Some(PathBuf::from(String::from_utf8_lossy(b).to_string())),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+
+                match self.restore_dump(custom_path.as_deref()) {
+                    Ok(count) => RespValue::Integer(count as i64),
+                    Err(e) => RespValue::Error(format!("ERR restore failed: {}", e)),
+                }
             }
 
             "METRICS" => {
@@ -1351,5 +1552,68 @@ mod tests {
             RespValue::BulkString(Some(b"user:101".to_vec())),
         ]);
         assert_eq!(hlen_after, RespValue::Integer(1));
+
+        // Test Sorted Sets (ZADD, ZRANGE, ZSCORE, ZCARD, ZREM)
+        let zadd_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"ZADD".to_vec())),
+            RespValue::BulkString(Some(b"leaderboard".to_vec())),
+            RespValue::BulkString(Some(b"1500.5".to_vec())),
+            RespValue::BulkString(Some(b"player_c".to_vec())),
+            RespValue::BulkString(Some(b"500.0".to_vec())),
+            RespValue::BulkString(Some(b"player_a".to_vec())),
+            RespValue::BulkString(Some(b"1000.0".to_vec())),
+            RespValue::BulkString(Some(b"player_b".to_vec())),
+        ]);
+        assert_eq!(zadd_res, RespValue::Integer(3));
+
+        let zscore_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"ZSCORE".to_vec())),
+            RespValue::BulkString(Some(b"leaderboard".to_vec())),
+            RespValue::BulkString(Some(b"player_b".to_vec())),
+        ]);
+        assert_eq!(zscore_res, RespValue::BulkString(Some(b"1000".to_vec())));
+
+        let zcard_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"ZCARD".to_vec())),
+            RespValue::BulkString(Some(b"leaderboard".to_vec())),
+        ]);
+        assert_eq!(zcard_res, RespValue::Integer(3));
+
+        let zrange_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"ZRANGE".to_vec())),
+            RespValue::BulkString(Some(b"leaderboard".to_vec())),
+            RespValue::BulkString(Some(b"0".to_vec())),
+            RespValue::BulkString(Some(b"-1".to_vec())),
+        ]);
+        assert_eq!(
+            zrange_res,
+            RespValue::Array(Some(vec![
+                RespValue::BulkString(Some(b"player_a".to_vec())),
+                RespValue::BulkString(Some(b"player_b".to_vec())),
+                RespValue::BulkString(Some(b"player_c".to_vec())),
+            ]))
+        );
+
+        let zrem_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"ZREM".to_vec())),
+            RespValue::BulkString(Some(b"leaderboard".to_vec())),
+            RespValue::BulkString(Some(b"player_b".to_vec())),
+        ]);
+        assert_eq!(zrem_res, RespValue::Integer(1));
+
+        let zcard_after = engine.execute_command(&[
+            RespValue::BulkString(Some(b"ZCARD".to_vec())),
+            RespValue::BulkString(Some(b"leaderboard".to_vec())),
+        ]);
+        assert_eq!(zcard_after, RespValue::Integer(2));
+
+        // Test Point-in-Time Dump & RESTORE_DUMP
+        let _ = engine.execute_command(&[RespValue::BulkString(Some(b"SAVE".to_vec()))]);
+        let restore_res = engine.execute_command(&[RespValue::BulkString(Some(b"RESTORE_DUMP".to_vec()))]);
+        if let RespValue::Integer(count) = restore_res {
+            assert!(count > 0);
+        } else {
+            panic!("Expected Integer count for RESTORE_DUMP");
+        }
     }
 }

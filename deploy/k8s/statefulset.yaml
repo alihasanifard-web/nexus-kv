@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nexus-kv
+  labels:
+    app.kubernetes.io/name: nexus-kv
+    app.kubernetes.io/part-of: nexus-cluster
+    app.kubernetes.io/architect: ali-hasanifard
+spec:
+  serviceName: nexus-kv-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nexus-kv
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nexus-kv
+    spec:
+      containers:
+        - name: nexus-kv
+          image: alihasanifard/nexus-kv:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/usr/local/bin/nexus-kv"
+            - "6379"
+            - "$(POD_ORDINAL)"
+            - "/nexus-data"
+          env:
+            - name: POD_ORDINAL
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: resp
+              containerPort: 6379
+            - name: telemetry
+              containerPort: 7379
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 7379
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 7379
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: nexus-storage
+              mountPath: /nexus-data
+  volumeClaimTemplates:
+    - metadata:
+        name: nexus-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

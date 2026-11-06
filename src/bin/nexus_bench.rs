@@ -19,6 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = get_arg_u16(&args, "-p", 6379);
     let total_requests = get_arg_usize(&args, "-n", 10_000);
     let concurrency = get_arg_usize(&args, "-c", 50);
+    let pipeline = get_arg_usize(&args, "-P", 1).max(1);
 
     println!("\n  \x1B[1;37mNexusKV Benchmark Suite v0.1.0\x1B[0m \x1B[90m(x86_64-pc-windows-gnu)\x1B[0m");
     println!("  \x1B[90mMulti-Threaded Async Load & Latency Distribution Analyzer\x1B[0m");
@@ -26,6 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Target:        \x1B[36m127.0.0.1:{}\x1B[0m \x1B[90m(Redis RESP)\x1B[0m", port);
     println!("  • Requests:      \x1B[36m{}\x1B[0m", to_formatted_number(total_requests));
     println!("  • Concurrency:   \x1B[36m{} async workers\x1B[0m", concurrency);
+    println!("  • Pipeline:      \x1B[36m{} batch depth\x1B[0m", pipeline);
     println!("  • Workload:      \x1B[37mSequential Pipeline SET & Verify\x1B[0m");
     println!("  \x1B[90m--------------------------------------------------------\x1B[0m\n");
 
@@ -76,32 +78,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let mut read_buf = BytesMut::with_capacity(1024);
-            let mut raw_scratch = [0u8; 512];
+            let mut read_buf = BytesMut::with_capacity(4096 * pipeline);
+            let mut raw_scratch = [0u8; 4096];
 
-            for i in 0..reqs_per_worker {
-                let key = format!("user:{:06}", worker_id * 10000 + i);
-                let val = format!("bench_payload_{}", i);
+            let mut i = 0;
+            while i < reqs_per_worker {
+                let batch_size = pipeline.min(reqs_per_worker - i);
+                let mut batch_cmd = String::with_capacity(batch_size * 64);
 
-                let cmd = format!("*3\r\n$3\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n", key.len(), key, val.len(), val);
+                for j in 0..batch_size {
+                    let key = format!("user:{:06}", worker_id * 100000 + i + j);
+                    let val = format!("bench_payload_{}", i + j);
+                    batch_cmd.push_str(&format!("*3\r\n$3\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n", key.len(), key, val.len(), val));
+                }
 
                 let req_start = Instant::now();
-                if stream.write_all(cmd.as_bytes()).await.is_err() {
+                if stream.write_all(batch_cmd.as_bytes()).await.is_err() {
                     break;
                 }
 
-                loop {
-                    let n = stream.read(&mut raw_scratch).await.unwrap_or(0);
-                    if n == 0 { break; }
-                    read_buf.extend_from_slice(&raw_scratch[..n]);
+                let mut responses_read = 0;
+                while responses_read < batch_size {
                     if RespCodec::decode(&mut read_buf).unwrap_or(None).is_some() {
-                        break;
+                        responses_read += 1;
+                    } else {
+                        let n = stream.read(&mut raw_scratch).await.unwrap_or(0);
+                        if n == 0 { break; }
+                        read_buf.extend_from_slice(&raw_scratch[..n]);
                     }
                 }
 
                 let elapsed_us = req_start.elapsed().as_micros() as u64;
-                latencies_clone.lock().push(elapsed_us);
-                completed_clone.fetch_add(1, Ordering::Relaxed);
+                let per_cmd_us = elapsed_us / (batch_size as u64).max(1);
+                {
+                    let mut guard = latencies_clone.lock();
+                    for _ in 0..batch_size {
+                        guard.push(per_cmd_us);
+                    }
+                }
+                completed_clone.fetch_add(batch_size, Ordering::Relaxed);
+                i += batch_size;
             }
         });
         handles.push(handle);
