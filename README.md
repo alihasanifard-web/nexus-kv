@@ -51,17 +51,15 @@
 
 ### 3. Redis RESP Wire Protocol Compatibility
 - Direct out-of-the-box compatibility with standard tools (`redis-cli`, Python `redis-py`, Node.js `ioredis`, Go `go-redis`):
-  - `PING` / `PONG`
-  - `SET key value [EX seconds]`
-  - `GET key`
-  - `DEL key`
-  - `EXPIRE key seconds` & `TTL key` & `PERSIST key`
-  - `MULTI`, `EXEC`, `DISCARD` (Atomic transactions)
-  - `KEYS pattern` (Wildcard & prefix matching)
-  - `SCAN cursor [MATCH pattern]` (Incremental iteration)
-  - `ROLE`
-  - `METRICS` (Live Prometheus metrics exporter)
-  - `FLUSHALL`
+  - **Strings:** `SET key value [EX seconds]`, `GET key`, `DEL key`, `PING`
+  - **Expiration:** `EXPIRE key seconds`, `TTL key`, `PERSIST key`
+  - **Lists & FIFO Queues:** `LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LLEN`, `LRANGE`
+  - **Sets & Secondary Indexes:** `SADD`, `SMEMBERS`, `SREM`, `SCARD`, `SISMEMBER`
+  - **Pub/Sub Engine:** `PUBLISH channel message`, `SUBSCRIBE channel [channel ...]`
+  - **Security & Info:** `AUTH password` (via `--requirepass`), `INFO` (Redis server telemetry)
+  - **Point-in-Time Dumps:** `SAVE`, `BGSAVE`, `LASTSAVE`
+  - **Transactions:** `MULTI`, `EXEC`, `DISCARD` (Atomic pipelines)
+  - **Inspection & Scan:** `KEYS pattern`, `SCAN cursor [MATCH pattern]`, `ROLE`, `METRICS`, `FLUSHALL`
 
 ### 4. Raft Log Compaction & Snapshotting (Raft §7)
 - Embedded snapshot engine truncates logs at specified index/term boundaries.
@@ -72,9 +70,25 @@
 - Two-Phase Commit with Prewrite, Commit, and Rollback stages.
 - Optimistic Concurrency Control (OCC) preventing write-write conflicts across transactions.
 
-### 5. Multi-Raft & Dynamic Sharding
+### 6. Multi-Raft & Dynamic Sharding
 - Region-based key routing with automatic region splitting as data scales.
 - Scales horizontally across multiple Raft groups.
+
+---
+
+## ⚡ 1-Line Quick Installation
+
+Install NexusKV and all CLI toolchains with a single terminal command:
+
+#### Linux & macOS:
+```bash
+curl -sSL https://raw.githubusercontent.com/alihasanifard-web/nexus-kv/main/install.sh | bash
+```
+
+#### Windows (PowerShell):
+```powershell
+irm https://raw.githubusercontent.com/alihasanifard-web/nexus-kv/main/install.ps1 | iex
+```
 
 ---
 

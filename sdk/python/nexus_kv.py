@@ -162,6 +162,65 @@ class NexusClient:
         res = self._send_command("SET", key, value, "EX", str(seconds))
         return res == "OK"
 
+    def auth(self, password: str) -> bool:
+        res = self._send_command("AUTH", password)
+        return res == "OK"
+
+    def info(self) -> str:
+        return str(self._send_command("INFO"))
+
+    def publish(self, channel: str, message: str) -> int:
+        return int(str(self._send_command("PUBLISH", channel, message)))
+
+    # Lists & Queues
+    def lpush(self, key: str, *values: str) -> int:
+        return int(str(self._send_command("LPUSH", key, *values)))
+
+    def rpush(self, key: str, *values: str) -> int:
+        return int(str(self._send_command("RPUSH", key, *values)))
+
+    def lpop(self, key: str) -> str | None:
+        res = self._send_command("LPOP", key)
+        return str(res) if res is not None else None
+
+    def rpop(self, key: str) -> str | None:
+        res = self._send_command("RPOP", key)
+        return str(res) if res is not None else None
+
+    def llen(self, key: str) -> int:
+        return int(str(self._send_command("LLEN", key)))
+
+    def lrange(self, key: str, start: int = 0, stop: int = -1) -> list[str]:
+        res = self._send_command("LRANGE", key, str(start), str(stop))
+        return [str(x) for x in res] if isinstance(res, list) else []
+
+    # Sets & Secondary Index
+    def sadd(self, key: str, *members: str) -> int:
+        return int(str(self._send_command("SADD", key, *members)))
+
+    def smembers(self, key: str) -> list[str]:
+        res = self._send_command("SMEMBERS", key)
+        return [str(x) for x in res] if isinstance(res, list) else []
+
+    def srem(self, key: str, *members: str) -> int:
+        return int(str(self._send_command("SREM", key, *members)))
+
+    def scard(self, key: str) -> int:
+        return int(str(self._send_command("SCARD", key)))
+
+    def sismember(self, key: str, member: str) -> bool:
+        return self._send_command("SISMEMBER", key, member) == 1
+
+    # Snapshots & Dumps
+    def save(self) -> bool:
+        return self._send_command("SAVE") == "OK"
+
+    def bgsave(self) -> str:
+        return str(self._send_command("BGSAVE"))
+
+    def lastsave(self) -> int:
+        return int(str(self._send_command("LASTSAVE")))
+
     def close(self):
         if self._sock:
             try:

@@ -11,8 +11,10 @@ use crate::raft::node::RaftNode;
 use crate::raft::state::NodeRole;
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::broadcast;
 
 #[derive(Default, Clone)]
 pub struct ClientSession {
@@ -27,6 +29,8 @@ pub struct NexusEngine {
     pub expirations: Arc<RwLock<HashMap<Vec<u8>, Instant>>>,
     pub auth_password: Arc<RwLock<Option<String>>>,
     pub start_time: Instant,
+    pub pubsub: Arc<RwLock<HashMap<String, broadcast::Sender<Vec<u8>>>>>,
+    pub last_save_time: Arc<AtomicU64>,
 }
 
 impl NexusEngine {
@@ -36,8 +40,96 @@ impl NexusEngine {
         let expirations = Arc::new(RwLock::new(HashMap::new()));
         let auth_password = Arc::new(RwLock::new(None));
         let start_time = Instant::now();
+        let pubsub = Arc::new(RwLock::new(HashMap::new()));
+        let last_save_time = Arc::new(AtomicU64::new(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+        ));
 
-        Ok(Self { storage, raft, expirations, auth_password, start_time })
+        Ok(Self {
+            storage,
+            raft,
+            expirations,
+            auth_password,
+            start_time,
+            pubsub,
+            last_save_time,
+        })
+    }
+
+    /// Get or register a pubsub broadcast channel
+    pub fn get_or_create_channel(&self, channel: &str) -> broadcast::Sender<Vec<u8>> {
+        let mut ps = self.pubsub.write();
+        if let Some(sender) = ps.get(channel) {
+            sender.clone()
+        } else {
+            let (tx, _rx) = broadcast::channel(1024);
+            ps.insert(channel.to_string(), tx.clone());
+            tx
+        }
+    }
+
+    /// Publish message to all active subscribers of a channel
+    pub fn publish_message(&self, channel: &str, message: &[u8]) -> usize {
+        let ps = self.pubsub.read();
+        if let Some(sender) = ps.get(channel) {
+            let count = sender.receiver_count();
+            let _ = sender.send(message.to_vec());
+            count
+        } else {
+            0
+        }
+    }
+
+    // Helper for List operations (stored in LSM engine)
+    pub fn get_list(&self, key: &str) -> Vec<Vec<u8>> {
+        let internal_key = format!("__list__:{}", key).into_bytes();
+        match self.storage.get(&internal_key) {
+            Ok(Some(raw)) => bincode::deserialize(&raw).unwrap_or_default(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn save_list(&self, key: &str, list: &[Vec<u8>]) -> std::io::Result<()> {
+        let internal_key = format!("__list__:{}", key).into_bytes();
+        if list.is_empty() {
+            self.storage.delete(&internal_key)
+        } else {
+            let raw = bincode::serialize(list).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            self.storage.put(&internal_key, &raw)
+        }
+    }
+
+    /// Perform a point-in-time snapshot dump of the database (SAVE / BGSAVE)
+    pub fn save_dump(&self) -> std::io::Result<usize> {
+        let _ = self.storage.flush();
+        let dump_path = self.storage.config.dir.join("nexus.dump");
+
+        let all_keys = self.storage.keys("*")?;
+        let mut dump_entries: Vec<(Vec<u8>, Vec<u8>)> = Vec::with_capacity(all_keys.len());
+        for k in all_keys {
+            if !self.is_expired(&k) {
+                if let Ok(Some(v)) = self.storage.get(&k) {
+                    dump_entries.push((k, v));
+                }
+            }
+        }
+
+        let count = dump_entries.len();
+        let serialized = bincode::serialize(&dump_entries)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        std::fs::write(&dump_path, serialized)?;
+
+        self.last_save_time.store(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            Ordering::Relaxed,
+        );
+        Ok(count)
     }
 
     /// Configure authentication password
@@ -397,7 +489,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            !self.is_expired(k) && (!s.starts_with("__set__:") || pattern.starts_with("__set__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         RespValue::Array(Some(elements))
@@ -420,7 +513,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            !self.is_expired(k) && (!s.starts_with("__set__:") || pattern.starts_with("__set__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         // Standard Redis SCAN format: [cursor, [keys...]]
@@ -606,6 +700,172 @@ impl NexusEngine {
                 let pattern = format!("{}*", prefix);
                 let count = self.storage.keys(&pattern).map(|k| k.len()).unwrap_or(0);
                 RespValue::Integer(count as i64)
+            }
+
+            // Pub/Sub Message Broker Engine
+            "PUBLISH" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'publish' command".to_string());
+                }
+                let channel = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid channel".to_string()),
+                };
+                let msg = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => b.clone(),
+                    _ => return RespValue::Error("Invalid message".to_string()),
+                };
+
+                let receivers = self.publish_message(&channel, &msg);
+                RespValue::Integer(receivers as i64)
+            }
+
+            // Lists & FIFO Task Queues Engine
+            "LPUSH" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'lpush' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mut list = self.get_list(&key_str);
+                for v in &cmd[2..] {
+                    if let RespValue::BulkString(Some(b)) = v {
+                        list.insert(0, b.clone());
+                    }
+                }
+                let len = list.len();
+                let _ = self.save_list(&key_str, &list);
+                RespValue::Integer(len as i64)
+            }
+
+            "RPUSH" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'rpush' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mut list = self.get_list(&key_str);
+                for v in &cmd[2..] {
+                    if let RespValue::BulkString(Some(b)) = v {
+                        list.push(b.clone());
+                    }
+                }
+                let len = list.len();
+                let _ = self.save_list(&key_str, &list);
+                RespValue::Integer(len as i64)
+            }
+
+            "LPOP" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'lpop' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mut list = self.get_list(&key_str);
+                if list.is_empty() {
+                    RespValue::BulkString(None)
+                } else {
+                    let popped = list.remove(0);
+                    let _ = self.save_list(&key_str, &list);
+                    RespValue::BulkString(Some(popped))
+                }
+            }
+
+            "RPOP" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'rpop' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mut list = self.get_list(&key_str);
+                if list.is_empty() {
+                    RespValue::BulkString(None)
+                } else {
+                    let popped = list.pop().unwrap();
+                    let _ = self.save_list(&key_str, &list);
+                    RespValue::BulkString(Some(popped))
+                }
+            }
+
+            "LLEN" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'llen' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let list = self.get_list(&key_str);
+                RespValue::Integer(list.len() as i64)
+            }
+
+            "LRANGE" => {
+                if cmd.len() < 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'lrange' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let start_idx = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<i64>().unwrap_or(0),
+                    RespValue::Integer(i) => *i,
+                    _ => 0,
+                };
+                let stop_idx = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<i64>().unwrap_or(-1),
+                    RespValue::Integer(i) => *i,
+                    _ => -1,
+                };
+
+                let list = self.get_list(&key_str);
+                let len = list.len() as i64;
+                if len == 0 {
+                    return RespValue::Array(Some(vec![]));
+                }
+
+                let s = if start_idx < 0 { (len + start_idx).max(0) } else { start_idx };
+                let mut e = if stop_idx < 0 { (len + stop_idx).max(0) } else { stop_idx };
+
+                if s >= len || s > e {
+                    return RespValue::Array(Some(vec![]));
+                }
+                e = e.min(len - 1);
+
+                let slice: Vec<RespValue> = list[s as usize..=e as usize]
+                    .iter()
+                    .map(|v| RespValue::BulkString(Some(v.clone())))
+                    .collect();
+                RespValue::Array(Some(slice))
+            }
+
+            // Snapshotting & Persistence (SAVE / BGSAVE / LASTSAVE)
+            "SAVE" => {
+                match self.save_dump() {
+                    Ok(_) => RespValue::SimpleString("OK".to_string()),
+                    Err(e) => RespValue::Error(format!("ERR save failed: {}", e)),
+                }
+            }
+
+            "BGSAVE" => {
+                let dump_res = self.save_dump();
+                match dump_res {
+                    Ok(_) => RespValue::SimpleString("Background saving started".to_string()),
+                    Err(e) => RespValue::Error(format!("ERR bgsave failed: {}", e)),
+                }
+            }
+
+            "LASTSAVE" => {
+                let ts = self.last_save_time.load(Ordering::Relaxed);
+                RespValue::Integer(ts as i64)
             }
 
             "METRICS" => {
@@ -839,5 +1099,77 @@ mod tests {
             RespValue::BulkString(Some(b"PING".to_vec())),
         ]);
         assert_eq!(auth_get, RespValue::SimpleString("PONG".to_string()));
+
+        // Test Lists & Queues (LPUSH, RPUSH, LPOP, RPOP, LLEN, LRANGE)
+        let rpush_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"RPUSH".to_vec())),
+            RespValue::BulkString(Some(b"task_queue".to_vec())),
+            RespValue::BulkString(Some(b"job1".to_vec())),
+            RespValue::BulkString(Some(b"job2".to_vec())),
+        ]);
+        assert_eq!(rpush_res, RespValue::Integer(2));
+
+        let lpush_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"LPUSH".to_vec())),
+            RespValue::BulkString(Some(b"task_queue".to_vec())),
+            RespValue::BulkString(Some(b"job0".to_vec())),
+        ]);
+        assert_eq!(lpush_res, RespValue::Integer(3));
+
+        let llen_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"LLEN".to_vec())),
+            RespValue::BulkString(Some(b"task_queue".to_vec())),
+        ]);
+        assert_eq!(llen_res, RespValue::Integer(3));
+
+        let lrange_all = engine.execute_command(&[
+            RespValue::BulkString(Some(b"LRANGE".to_vec())),
+            RespValue::BulkString(Some(b"task_queue".to_vec())),
+            RespValue::BulkString(Some(b"0".to_vec())),
+            RespValue::BulkString(Some(b"-1".to_vec())),
+        ]);
+        assert_eq!(
+            lrange_all,
+            RespValue::Array(Some(vec![
+                RespValue::BulkString(Some(b"job0".to_vec())),
+                RespValue::BulkString(Some(b"job1".to_vec())),
+                RespValue::BulkString(Some(b"job2".to_vec())),
+            ]))
+        );
+
+        let lpop_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"LPOP".to_vec())),
+            RespValue::BulkString(Some(b"task_queue".to_vec())),
+        ]);
+        assert_eq!(lpop_res, RespValue::BulkString(Some(b"job0".to_vec())));
+
+        let rpop_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"RPOP".to_vec())),
+            RespValue::BulkString(Some(b"task_queue".to_vec())),
+        ]);
+        assert_eq!(rpop_res, RespValue::BulkString(Some(b"job2".to_vec())));
+
+        // Test Pub/Sub Engine
+        let _rx = engine.get_or_create_channel("news").subscribe();
+        let pub_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"PUBLISH".to_vec())),
+            RespValue::BulkString(Some(b"news".to_vec())),
+            RespValue::BulkString(Some(b"breaking_news_event".to_vec())),
+        ]);
+        assert_eq!(pub_res, RespValue::Integer(1));
+
+        // Test SAVE & Snapshot Dump
+        let save_res = engine.execute_command(&[RespValue::BulkString(Some(b"SAVE".to_vec()))]);
+        assert_eq!(save_res, RespValue::SimpleString("OK".to_string()));
+
+        let bgsave_res = engine.execute_command(&[RespValue::BulkString(Some(b"BGSAVE".to_vec()))]);
+        assert_eq!(bgsave_res, RespValue::SimpleString("Background saving started".to_string()));
+
+        let lastsave_res = engine.execute_command(&[RespValue::BulkString(Some(b"LASTSAVE".to_vec()))]);
+        if let RespValue::Integer(ts) = lastsave_res {
+            assert!(ts > 0);
+        } else {
+            panic!("Expected Integer for LASTSAVE");
+        }
     }
 }

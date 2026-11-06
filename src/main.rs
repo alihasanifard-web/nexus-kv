@@ -72,20 +72,72 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn handle_client(mut socket: TcpStream, _addr: std::net::SocketAddr, engine: Arc<NexusEngine>) {
     let mut buf = BytesMut::with_capacity(4096);
     let mut session = ClientSession::default();
+    let (pubsub_tx, mut pubsub_rx) = tokio::sync::mpsc::channel::<(String, Vec<u8>)>(1024);
+    let mut sub_count = 0usize;
 
     loop {
         let mut read_buf = [0u8; 1024];
-        let n = match socket.read(&mut read_buf).await {
-            Ok(0) => break, // Client disconnected
-            Ok(n) => n,
-            Err(_) => break,
-        };
 
-        buf.extend_from_slice(&read_buf[..n]);
+        tokio::select! {
+            res = socket.read(&mut read_buf) => {
+                let n = match res {
+                    Ok(0) => break, // Client disconnected
+                    Ok(n) => n,
+                    Err(_) => break,
+                };
+                buf.extend_from_slice(&read_buf[..n]);
+            }
+            Some((ch, msg)) = pubsub_rx.recv(), if sub_count > 0 => {
+                let push_resp = RespValue::Array(Some(vec![
+                    RespValue::BulkString(Some(b"message".to_vec())),
+                    RespValue::BulkString(Some(ch.into_bytes())),
+                    RespValue::BulkString(Some(msg)),
+                ]));
+                let wire_bytes = RespCodec::encode(&push_resp);
+                if socket.write_all(&wire_bytes).await.is_err() {
+                    break;
+                }
+            }
+        }
 
         while !buf.is_empty() {
             match RespCodec::decode(&mut buf) {
                 Ok(Some(RespValue::Array(Some(cmd_parts)))) => {
+                    let cmd_name = match &cmd_parts[0] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_uppercase(),
+                        RespValue::SimpleString(s) => s.to_uppercase(),
+                        _ => String::new(),
+                    };
+
+                    if cmd_name == "SUBSCRIBE" {
+                        for ch_val in &cmd_parts[1..] {
+                            let ch_str = match ch_val {
+                                RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                                _ => continue,
+                            };
+                            let mut b_rx = engine.get_or_create_channel(&ch_str).subscribe();
+                            let tx = pubsub_tx.clone();
+                            let ch_name = ch_str.clone();
+                            sub_count += 1;
+
+                            tokio::spawn(async move {
+                                while let Ok(msg) = b_rx.recv().await {
+                                    if tx.send((ch_name.clone(), msg)).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            });
+
+                            let sub_reply = RespValue::Array(Some(vec![
+                                RespValue::BulkString(Some(b"subscribe".to_vec())),
+                                RespValue::BulkString(Some(ch_str.into_bytes())),
+                                RespValue::Integer(sub_count as i64),
+                            ]));
+                            let _ = socket.write_all(&RespCodec::encode(&sub_reply)).await;
+                        }
+                        continue;
+                    }
+
                     let response = engine.execute_with_session(&mut session, &cmd_parts);
                     let wire_bytes = RespCodec::encode(&response);
                     if socket.write_all(&wire_bytes).await.is_err() {
