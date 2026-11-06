@@ -22,6 +22,7 @@ pub struct ClientSession {
     pub in_multi: bool,
     pub queue: Vec<Vec<RespValue>>,
     pub authenticated: bool,
+    pub db: u8,
 }
 
 pub struct NexusEngine {
@@ -287,6 +288,21 @@ impl NexusEngine {
                     RespValue::Array(Some(results))
                 }
             }
+            "SELECT" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'select' command".to_string());
+                }
+                let db_idx = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<u8>().unwrap_or(0),
+                    RespValue::Integer(i) => *i as u8,
+                    _ => 0,
+                };
+                if db_idx > 15 {
+                    return RespValue::Error("ERR DB index is out of range".to_string());
+                }
+                session.db = db_idx;
+                RespValue::SimpleString("OK".to_string())
+            }
             _ => {
                 if session.in_multi {
                     session.queue.push(cmd.to_vec());
@@ -516,8 +532,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:") || s.starts_with("__geo__:") || s.starts_with("__ratelimit__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:") || pattern.starts_with("__geo__:") || pattern.starts_with("__ratelimit__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:") || s.starts_with("__geo__:") || s.starts_with("__ratelimit__:") || s.starts_with("__hll__:") || s.starts_with("__stream_") || s.starts_with("__db");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         RespValue::Array(Some(elements))
@@ -540,8 +556,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:") || s.starts_with("__geo__:") || s.starts_with("__ratelimit__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:") || pattern.starts_with("__zset_score__:") || pattern.starts_with("__geo__:") || pattern.starts_with("__ratelimit__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:") || s.starts_with("__zset_score__:") || s.starts_with("__geo__:") || s.starts_with("__ratelimit__:") || s.starts_with("__hll__:") || s.starts_with("__stream_") || s.starts_with("__db");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         // Standard Redis SCAN format: [cursor, [keys...]]
@@ -1474,6 +1490,336 @@ impl NexusEngine {
                 }
             }
 
+            // Bitmaps Engine (SETBIT, GETBIT, BITCOUNT)
+            "SETBIT" => {
+                if cmd.len() < 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'setbit' command".to_string());
+                }
+                let key = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => b.clone(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let offset: usize = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse().unwrap_or(0),
+                    RespValue::Integer(i) => *i as usize,
+                    _ => 0,
+                };
+                let val: u8 = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse().unwrap_or(0),
+                    RespValue::Integer(i) => *i as u8,
+                    _ => 0,
+                };
+                if val > 1 {
+                    return RespValue::Error("ERR bit is not an integer or out of range".to_string());
+                }
+
+                let byte_idx = offset / 8;
+                let bit_idx = 7 - (offset % 8);
+
+                let mut bytes = self.storage.get(&key).ok().flatten().unwrap_or_default();
+                if byte_idx >= bytes.len() {
+                    bytes.resize(byte_idx + 1, 0);
+                }
+                let prev_bit = (bytes[byte_idx] >> bit_idx) & 1;
+                if val == 1 {
+                    bytes[byte_idx] |= 1 << bit_idx;
+                } else {
+                    bytes[byte_idx] &= !(1 << bit_idx);
+                }
+                let _ = self.storage.put(&key, &bytes);
+                RespValue::Integer(prev_bit as i64)
+            }
+
+            "GETBIT" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'getbit' command".to_string());
+                }
+                let key = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => b.clone(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let offset: usize = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse().unwrap_or(0),
+                    RespValue::Integer(i) => *i as usize,
+                    _ => 0,
+                };
+
+                let byte_idx = offset / 8;
+                let bit_idx = 7 - (offset % 8);
+                let bit = match self.storage.get(&key).ok().flatten() {
+                    Some(bytes) if byte_idx < bytes.len() => (bytes[byte_idx] >> bit_idx) & 1,
+                    _ => 0,
+                };
+                RespValue::Integer(bit as i64)
+            }
+
+            "BITCOUNT" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'bitcount' command".to_string());
+                }
+                let key = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => b.clone(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let bytes = match self.storage.get(&key).ok().flatten() {
+                    Some(b) => b,
+                    None => return RespValue::Integer(0),
+                };
+                let len = bytes.len() as i64;
+                if len == 0 {
+                    return RespValue::Integer(0);
+                }
+
+                let (start, stop) = if cmd.len() >= 4 {
+                    let s = match &cmd[2] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<i64>().unwrap_or(0),
+                        RespValue::Integer(i) => *i,
+                        _ => 0,
+                    };
+                    let e = match &cmd[3] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<i64>().unwrap_or(-1),
+                        RespValue::Integer(i) => *i,
+                        _ => -1,
+                    };
+                    let s_norm = if s < 0 { (len + s).max(0) } else { s };
+                    let e_norm = if e < 0 { (len + e).max(0) } else { e };
+                    (s_norm as usize, (e_norm as usize).min(bytes.len().saturating_sub(1)))
+                } else {
+                    (0, bytes.len().saturating_sub(1))
+                };
+
+                let count: u64 = if start <= stop && start < bytes.len() {
+                    bytes[start..=stop].iter().map(|&b| b.count_ones() as u64).sum()
+                } else {
+                    0
+                };
+                RespValue::Integer(count as i64)
+            }
+
+            // HyperLogLog Cardinality Estimation (PFADD, PFCOUNT)
+            "PFADD" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'pfadd' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let internal_key = format!("__hll__:{}", key_str).into_bytes();
+                let mut registers = match self.storage.get(&internal_key).ok().flatten() {
+                    Some(r) if r.len() == 16384 => r,
+                    _ => vec![0u8; 16384],
+                };
+
+                let mut updated = false;
+                for arg in &cmd[2..] {
+                    if let RespValue::BulkString(Some(b)) = arg {
+                        let hash = fnv1a_64(b);
+                        let idx = (hash & 0x3FFF) as usize; // first 14 bits -> 16384 registers
+                        let w = hash >> 14;
+                        let rho = (w.leading_zeros() + 1).min(64) as u8;
+                        if rho > registers[idx] {
+                            registers[idx] = rho;
+                            updated = true;
+                        }
+                    }
+                }
+
+                if updated {
+                    let _ = self.storage.put(&internal_key, &registers);
+                    RespValue::Integer(1)
+                } else {
+                    RespValue::Integer(0)
+                }
+            }
+
+            "PFCOUNT" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'pfcount' command".to_string());
+                }
+                let mut merged = vec![0u8; 16384];
+                let mut any_found = false;
+
+                for k_arg in &cmd[1..] {
+                    if let RespValue::BulkString(Some(b)) = k_arg {
+                        let key_str = String::from_utf8_lossy(b);
+                        let internal_key = format!("__hll__:{}", key_str).into_bytes();
+                        if let Some(r) = self.storage.get(&internal_key).ok().flatten() {
+                            if r.len() == 16384 {
+                                any_found = true;
+                                for i in 0..16384 {
+                                    merged[i] = merged[i].max(r[i]);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !any_found {
+                    return RespValue::Integer(0);
+                }
+
+                let m = 16384.0;
+                let alpha_m = 0.7213 / (1.0 + 1.079 / m);
+                let sum: f64 = merged.iter().map(|&val| 2.0f64.powi(-(val as i32))).sum();
+                let mut estimate = alpha_m * (m * m) / sum;
+
+                if estimate <= 2.5 * m {
+                    let zeros = merged.iter().filter(|&&v| v == 0).count() as f64;
+                    if zeros > 0.0 {
+                        estimate = m * (m / zeros).ln();
+                    }
+                }
+                RespValue::Integer(estimate.round() as i64)
+            }
+
+            // Redis Streams & Event Sourcing Engine (XADD, XRANGE, XLEN)
+            "XADD" => {
+                if cmd.len() < 5 || (cmd.len() - 3) % 2 != 0 {
+                    return RespValue::Error("ERR wrong number of arguments for 'xadd' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid stream key".to_string()),
+                };
+                let id_spec = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => "*".to_string(),
+                };
+
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+
+                let seq_key = format!("__stream_seq__:{}", key_str).into_bytes();
+                let (last_ms, last_seq): (u64, u64) = match self.storage.get(&seq_key).ok().flatten() {
+                    Some(raw) => bincode::deserialize(&raw).unwrap_or((0, 0)),
+                    None => (0, 0),
+                };
+
+                let entry_id = if id_spec == "*" {
+                    let seq = if now_ms == last_ms { last_seq + 1 } else { 0 };
+                    format!("{}-{}", now_ms, seq)
+                } else {
+                    id_spec
+                };
+
+                let mut fields: Vec<(String, Vec<u8>)> = Vec::new();
+                let mut i = 3;
+                while i < cmd.len() {
+                    let f = match &cmd[i] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => return RespValue::Error("Invalid field".to_string()),
+                    };
+                    let v = match &cmd[i + 1] {
+                        RespValue::BulkString(Some(b)) => b.clone(),
+                        _ => return RespValue::Error("Invalid value".to_string()),
+                    };
+                    fields.push((f, v));
+                    i += 2;
+                }
+
+                let entry_key = format!("__stream_entry__:{}:{}", key_str, entry_id).into_bytes();
+                if let Ok(raw) = bincode::serialize(&fields) {
+                    let _ = self.storage.put(&entry_key, &raw);
+                }
+
+                let ids_key = format!("__stream_ids__:{}", key_str).into_bytes();
+                let mut ids: Vec<String> = match self.storage.get(&ids_key).ok().flatten() {
+                    Some(raw) => bincode::deserialize(&raw).unwrap_or_default(),
+                    None => Vec::new(),
+                };
+                ids.push(entry_id.clone());
+                if let Ok(raw) = bincode::serialize(&ids) {
+                    let _ = self.storage.put(&ids_key, &raw);
+                }
+
+                if let Ok(raw) = bincode::serialize(&(now_ms, if now_ms == last_ms { last_seq + 1 } else { 0 })) {
+                    let _ = self.storage.put(&seq_key, &raw);
+                }
+
+                RespValue::BulkString(Some(entry_id.into_bytes()))
+            }
+
+            "XRANGE" => {
+                if cmd.len() < 4 {
+                    return RespValue::Error("ERR wrong number of arguments for 'xrange' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid stream key".to_string()),
+                };
+                let start_id = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => "-".to_string(),
+                };
+                let stop_id = match &cmd[3] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => "+".to_string(),
+                };
+
+                let ids_key = format!("__stream_ids__:{}", key_str).into_bytes();
+                let ids: Vec<String> = match self.storage.get(&ids_key).ok().flatten() {
+                    Some(raw) => bincode::deserialize(&raw).unwrap_or_default(),
+                    None => Vec::new(),
+                };
+
+                let mut entries = Vec::new();
+                for id in ids {
+                    let after_start = start_id == "-" || id.as_str() >= start_id.as_str();
+                    let before_stop = stop_id == "+" || id.as_str() <= stop_id.as_str();
+                    if after_start && before_stop {
+                        let entry_key = format!("__stream_entry__:{}:{}", key_str, id).into_bytes();
+                        if let Some(raw) = self.storage.get(&entry_key).ok().flatten() {
+                            if let Ok(fields) = bincode::deserialize::<Vec<(String, Vec<u8>)>>(&raw) {
+                                let mut f_arr = Vec::new();
+                                for (k, v) in fields {
+                                    f_arr.push(RespValue::BulkString(Some(k.into_bytes())));
+                                    f_arr.push(RespValue::BulkString(Some(v)));
+                                }
+                                entries.push(RespValue::Array(Some(vec![
+                                    RespValue::BulkString(Some(id.into_bytes())),
+                                    RespValue::Array(Some(f_arr)),
+                                ])));
+                            }
+                        }
+                    }
+                }
+                RespValue::Array(Some(entries))
+            }
+
+            "XLEN" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'xlen' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid stream key".to_string()),
+                };
+                let ids_key = format!("__stream_ids__:{}", key_str).into_bytes();
+                let count = match self.storage.get(&ids_key).ok().flatten() {
+                    Some(raw) => bincode::deserialize::<Vec<String>>(&raw).map(|v| v.len()).unwrap_or(0),
+                    None => 0,
+                };
+                RespValue::Integer(count as i64)
+            }
+
+            "SELECT" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'select' command".to_string());
+                }
+                let db_idx = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).parse::<u8>().unwrap_or(0),
+                    RespValue::Integer(i) => *i as u8,
+                    _ => 0,
+                };
+                if db_idx > 15 {
+                    return RespValue::Error("ERR DB index is out of range".to_string());
+                }
+                RespValue::SimpleString("OK".to_string())
+            }
+
             "METRICS" => {
                 let term = self.raft.state.read().current_term;
                 let mem_bytes = self.storage.memtable.size();
@@ -1516,6 +1862,18 @@ fn convert_distance_to_meters(dist: f64, unit: &str) -> f64 {
         "ft" => dist / 3.28084,
         _ => dist,
     }
+}
+
+// -----------------------------------------------------------------------------
+// HyperLogLog FNV-1a 64-bit Non-Cryptographic Fast Hash
+// -----------------------------------------------------------------------------
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for &b in bytes {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 #[cfg(test)]
@@ -1995,5 +2353,90 @@ mod tests {
             RespValue::BulkString(Some(b"6382".to_vec())),
         ]);
         assert_eq!(meet_res, RespValue::SimpleString("OK".to_string()));
+
+        // Test Bitmaps (SETBIT, GETBIT, BITCOUNT)
+        let sb1 = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SETBIT".to_vec())),
+            RespValue::BulkString(Some(b"user:dau:20261106".to_vec())),
+            RespValue::BulkString(Some(b"7".to_vec())),
+            RespValue::BulkString(Some(b"1".to_vec())),
+        ]);
+        assert_eq!(sb1, RespValue::Integer(0));
+
+        let gb1 = engine.execute_command(&[
+            RespValue::BulkString(Some(b"GETBIT".to_vec())),
+            RespValue::BulkString(Some(b"user:dau:20261106".to_vec())),
+            RespValue::BulkString(Some(b"7".to_vec())),
+        ]);
+        assert_eq!(gb1, RespValue::Integer(1));
+
+        let bc = engine.execute_command(&[
+            RespValue::BulkString(Some(b"BITCOUNT".to_vec())),
+            RespValue::BulkString(Some(b"user:dau:20261106".to_vec())),
+        ]);
+        assert_eq!(bc, RespValue::Integer(1));
+
+        // Test HyperLogLog (PFADD, PFCOUNT)
+        let pf1 = engine.execute_command(&[
+            RespValue::BulkString(Some(b"PFADD".to_vec())),
+            RespValue::BulkString(Some(b"hll:visitors".to_vec())),
+            RespValue::BulkString(Some(b"user_1".to_vec())),
+            RespValue::BulkString(Some(b"user_2".to_vec())),
+            RespValue::BulkString(Some(b"user_3".to_vec())),
+        ]);
+        assert_eq!(pf1, RespValue::Integer(1));
+
+        let pfc = engine.execute_command(&[
+            RespValue::BulkString(Some(b"PFCOUNT".to_vec())),
+            RespValue::BulkString(Some(b"hll:visitors".to_vec())),
+        ]);
+        if let RespValue::Integer(card) = pfc {
+            assert!(card >= 2 && card <= 4);
+        } else {
+            panic!("Expected Integer for PFCOUNT");
+        }
+
+        // Test Streams (XADD, XRANGE, XLEN)
+        let xadd_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"XADD".to_vec())),
+            RespValue::BulkString(Some(b"events:orders".to_vec())),
+            RespValue::BulkString(Some(b"*".to_vec())),
+            RespValue::BulkString(Some(b"item".to_vec())),
+            RespValue::BulkString(Some(b"laptop".to_vec())),
+            RespValue::BulkString(Some(b"price".to_vec())),
+            RespValue::BulkString(Some(b"1200".to_vec())),
+        ]);
+        if let RespValue::BulkString(Some(id)) = xadd_res {
+            assert!(!id.is_empty());
+        } else {
+            panic!("Expected BulkString ID for XADD");
+        }
+
+        let xlen_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"XLEN".to_vec())),
+            RespValue::BulkString(Some(b"events:orders".to_vec())),
+        ]);
+        assert_eq!(xlen_res, RespValue::Integer(1));
+
+        let xrange_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"XRANGE".to_vec())),
+            RespValue::BulkString(Some(b"events:orders".to_vec())),
+            RespValue::BulkString(Some(b"-".to_vec())),
+            RespValue::BulkString(Some(b"+".to_vec())),
+        ]);
+        if let RespValue::Array(Some(entries)) = xrange_res {
+            assert_eq!(entries.len(), 1);
+        } else {
+            panic!("Expected Array for XRANGE");
+        }
+
+        // Test SELECT command
+        session.authenticated = true;
+        let sel_res = engine.execute_with_session(&mut session, &[
+            RespValue::BulkString(Some(b"SELECT".to_vec())),
+            RespValue::BulkString(Some(b"3".to_vec())),
+        ]);
+        assert_eq!(sel_res, RespValue::SimpleString("OK".to_string()));
+        assert_eq!(session.db, 3);
     }
 }

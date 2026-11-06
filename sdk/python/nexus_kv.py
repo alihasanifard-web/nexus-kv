@@ -315,6 +315,56 @@ class NexusClient:
         res = self._send_command("CLUSTER", "MEET", ip, str(port))
         return res == "OK"
 
+    # Bitmaps & Activity Analytics
+    def setbit(self, key: str, offset: int, value: int) -> int:
+        return int(str(self._send_command("SETBIT", key, str(offset), str(value))))
+
+    def getbit(self, key: str, offset: int) -> int:
+        return int(str(self._send_command("GETBIT", key, str(offset))))
+
+    def bitcount(self, key: str, start: int | None = None, end: int | None = None) -> int:
+        args = ["BITCOUNT", key]
+        if start is not None and end is not None:
+            args.extend([str(start), str(end)])
+        return int(str(self._send_command(*args)))
+
+    # HyperLogLog Big-Data Cardinality
+    def pfadd(self, key: str, *elements: str) -> int:
+        return int(str(self._send_command("PFADD", key, *elements)))
+
+    def pfcount(self, *keys: str) -> int:
+        return int(str(self._send_command("PFCOUNT", *keys)))
+
+    # Streams & Event Sourcing (Kafka-like)
+    def xadd(self, key: str, fields: dict[str, str], id: str = "*") -> str:
+        args = ["XADD", key, id]
+        for f, v in fields.items():
+            args.extend([f, str(v)])
+        return str(self._send_command(*args))
+
+    def xrange(self, key: str, start: str = "-", stop: str = "+") -> list[tuple[str, dict[str, str]]]:
+        res = self._send_command("XRANGE", key, start, stop)
+        entries = []
+        if isinstance(res, list):
+            for item in res:
+                if isinstance(item, list) and len(item) == 2:
+                    entry_id = str(item[0])
+                    raw_fields = item[1]
+                    f_dict = {}
+                    if isinstance(raw_fields, list):
+                        it = iter(raw_fields)
+                        f_dict = {str(k): str(v) for k, v in zip(it, it)}
+                    entries.append((entry_id, f_dict))
+        return entries
+
+    def xlen(self, key: str) -> int:
+        return int(str(self._send_command("XLEN", key)))
+
+    # Multi-Tenancy & Logical Databases
+    def select(self, db_index: int) -> bool:
+        res = self._send_command("SELECT", str(db_index))
+        return res == "OK"
+
     def close(self):
         if self._sock:
             try:

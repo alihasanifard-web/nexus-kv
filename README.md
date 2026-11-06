@@ -58,6 +58,10 @@
   - **Lists & FIFO Queues:** `LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LLEN`, `LRANGE`
   - **Sets & Secondary Indexes:** `SADD`, `SMEMBERS`, `SREM`, `SCARD`, `SISMEMBER`
   - **Geospatial (GIS):** `GEOADD`, `GEODIST`, `GEORADIUS` (Spherical Haversine distance engine)
+  - **Streams (Kafka-like):** `XADD`, `XRANGE`, `XLEN` (Event Sourcing with monotonic IDs)
+  - **Bitmaps & Analytics:** `SETBIT`, `GETBIT`, `BITCOUNT` (Compact user activity tracking)
+  - **HyperLogLog (HLL):** `PFADD`, `PFCOUNT` (Sub-1% error Big-Data cardinality estimation)
+  - **Multi-Tenancy:** `SELECT index` (0 to 15 logical database separation)
   - **Atomic Rate Limiter:** `RATELIMIT key max_requests window_seconds` (Sliding-window API protection)
   - **Dynamic Clustering:** `CLUSTER MEET ip port`, `CLUSTER NODES` (Zero-downtime peer expansion)
   - **Pub/Sub Broker:** `PUBLISH channel message`, `SUBSCRIBE channel [channel ...]`
