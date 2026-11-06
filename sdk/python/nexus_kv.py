@@ -211,6 +211,36 @@ class NexusClient:
     def sismember(self, key: str, member: str) -> bool:
         return self._send_command("SISMEMBER", key, member) == 1
 
+    # Hashes & Object Serialization
+    def hset(self, key: str, field: str | None = None, value: str | None = None, mapping: dict[str, str] | None = None) -> int:
+        args = ["HSET", key]
+        if mapping:
+            for k, v in mapping.items():
+                args.extend([k, str(v)])
+        if field is not None and value is not None:
+            args.extend([field, str(value)])
+        return int(str(self._send_command(*args)))
+
+    def hget(self, key: str, field: str) -> str | None:
+        res = self._send_command("HGET", key, field)
+        return str(res) if res is not None else None
+
+    def hgetall(self, key: str) -> dict[str, str]:
+        res = self._send_command("HGETALL", key)
+        if isinstance(res, list):
+            it = iter(res)
+            return {str(k): str(v) for k, v in zip(it, it)}
+        return {}
+
+    def hdel(self, key: str, *fields: str) -> int:
+        return int(str(self._send_command("HDEL", key, *fields)))
+
+    def hlen(self, key: str) -> int:
+        return int(str(self._send_command("HLEN", key)))
+
+    def hexists(self, key: str, field: str) -> bool:
+        return self._send_command("HEXISTS", key, field) == 1
+
     # Snapshots & Dumps
     def save(self) -> bool:
         return self._send_command("SAVE") == "OK"

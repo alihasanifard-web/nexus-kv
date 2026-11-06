@@ -489,8 +489,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         RespValue::Array(Some(elements))
@@ -513,8 +513,8 @@ impl NexusEngine {
                     Ok(mut matched_keys) => {
                         matched_keys.retain(|k| {
                             let s = String::from_utf8_lossy(k);
-                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:");
-                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:"))
+                            let is_internal = s.starts_with("__set__:") || s.starts_with("__list__:") || s.starts_with("__hash__:");
+                            !self.is_expired(k) && (!is_internal || pattern.starts_with("__set__:") || pattern.starts_with("__list__:") || pattern.starts_with("__hash__:"))
                         });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         // Standard Redis SCAN format: [cursor, [keys...]]
@@ -847,6 +847,142 @@ impl NexusEngine {
                 RespValue::Array(Some(slice))
             }
 
+            // Hashes Data Structure Engine (HSET, HGET, HGETALL, HDEL, HLEN, HEXISTS)
+            "HSET" => {
+                if cmd.len() < 4 || (cmd.len() - 2) % 2 != 0 {
+                    return RespValue::Error("ERR wrong number of arguments for 'hset' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+
+                let mut new_fields = 0;
+                let mut i = 2;
+                while i < cmd.len() {
+                    let field = match &cmd[i] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => return RespValue::Error("Invalid field".to_string()),
+                    };
+                    let val = match &cmd[i + 1] {
+                        RespValue::BulkString(Some(b)) => b.clone(),
+                        _ => return RespValue::Error("Invalid value".to_string()),
+                    };
+
+                    let internal_key = format!("__hash__:{}:{}", key_str, field).into_bytes();
+                    if let Ok(None) = self.storage.get(&internal_key) {
+                        new_fields += 1;
+                    }
+                    let _ = self.storage.put(&internal_key, &val);
+                    i += 2;
+                }
+                RespValue::Integer(new_fields as i64)
+            }
+
+            "HGET" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'hget' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let field = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid field".to_string()),
+                };
+
+                let internal_key = format!("__hash__:{}:{}", key_str, field).into_bytes();
+                match self.storage.get(&internal_key) {
+                    Ok(Some(v)) => RespValue::BulkString(Some(v)),
+                    _ => RespValue::BulkString(None),
+                }
+            }
+
+            "HGETALL" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'hgetall' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+
+                let prefix = format!("__hash__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                match self.storage.keys(&pattern) {
+                    Ok(keys) => {
+                        let mut pairs = Vec::with_capacity(keys.len() * 2);
+                        for k in keys {
+                            if let Ok(Some(v)) = self.storage.get(&k) {
+                                let k_str = String::from_utf8_lossy(&k);
+                                if let Some(field) = k_str.strip_prefix(&prefix) {
+                                    pairs.push(RespValue::BulkString(Some(field.as_bytes().to_vec())));
+                                    pairs.push(RespValue::BulkString(Some(v)));
+                                }
+                            }
+                        }
+                        RespValue::Array(Some(pairs))
+                    }
+                    Err(e) => RespValue::Error(format!("Storage error: {}", e)),
+                }
+            }
+
+            "HDEL" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'hdel' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+
+                let mut deleted_count = 0;
+                for f_val in &cmd[2..] {
+                    let field = match f_val {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => continue,
+                    };
+                    let internal_key = format!("__hash__:{}:{}", key_str, field).into_bytes();
+                    if let Ok(Some(_)) = self.storage.get(&internal_key) {
+                        let _ = self.storage.delete(&internal_key);
+                        deleted_count += 1;
+                    }
+                }
+                RespValue::Integer(deleted_count as i64)
+            }
+
+            "HLEN" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'hlen' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let prefix = format!("__hash__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                let count = self.storage.keys(&pattern).map(|k| k.len()).unwrap_or(0);
+                RespValue::Integer(count as i64)
+            }
+
+            "HEXISTS" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'hexists' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let field = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid field".to_string()),
+                };
+                let internal_key = format!("__hash__:{}:{}", key_str, field).into_bytes();
+                let exists = self.storage.get(&internal_key).map(|opt| opt.is_some()).unwrap_or(false);
+                RespValue::Integer(if exists { 1 } else { 0 })
+            }
+
             // Snapshotting & Persistence (SAVE / BGSAVE / LASTSAVE)
             "SAVE" => {
                 match self.save_dump() {
@@ -1171,5 +1307,49 @@ mod tests {
         } else {
             panic!("Expected Integer for LASTSAVE");
         }
+
+        // Test Hashes Data Structure (HSET, HGET, HGETALL, HDEL, HLEN, HEXISTS)
+        let hset_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"HSET".to_vec())),
+            RespValue::BulkString(Some(b"user:101".to_vec())),
+            RespValue::BulkString(Some(b"name".to_vec())),
+            RespValue::BulkString(Some(b"Ali Hasanifard".to_vec())),
+            RespValue::BulkString(Some(b"role".to_vec())),
+            RespValue::BulkString(Some(b"system-architect".to_vec())),
+        ]);
+        assert_eq!(hset_res, RespValue::Integer(2));
+
+        let hget_name = engine.execute_command(&[
+            RespValue::BulkString(Some(b"HGET".to_vec())),
+            RespValue::BulkString(Some(b"user:101".to_vec())),
+            RespValue::BulkString(Some(b"name".to_vec())),
+        ]);
+        assert_eq!(hget_name, RespValue::BulkString(Some(b"Ali Hasanifard".to_vec())));
+
+        let hexists_role = engine.execute_command(&[
+            RespValue::BulkString(Some(b"HEXISTS".to_vec())),
+            RespValue::BulkString(Some(b"user:101".to_vec())),
+            RespValue::BulkString(Some(b"role".to_vec())),
+        ]);
+        assert_eq!(hexists_role, RespValue::Integer(1));
+
+        let hlen_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"HLEN".to_vec())),
+            RespValue::BulkString(Some(b"user:101".to_vec())),
+        ]);
+        assert_eq!(hlen_res, RespValue::Integer(2));
+
+        let hdel_role = engine.execute_command(&[
+            RespValue::BulkString(Some(b"HDEL".to_vec())),
+            RespValue::BulkString(Some(b"user:101".to_vec())),
+            RespValue::BulkString(Some(b"role".to_vec())),
+        ]);
+        assert_eq!(hdel_role, RespValue::Integer(1));
+
+        let hlen_after = engine.execute_command(&[
+            RespValue::BulkString(Some(b"HLEN".to_vec())),
+            RespValue::BulkString(Some(b"user:101".to_vec())),
+        ]);
+        assert_eq!(hlen_after, RespValue::Integer(1));
     }
 }

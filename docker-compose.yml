@@ -1,0 +1,104 @@
+# ==============================================================================
+# 🐳 NEXUS-KV DISTRIBUTED CLUSTER & OBSERVABILITY COMPOSE
+# Architect: Ali Hasanifard
+# Launch: docker compose up -d
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # Raft Node 1 (Default Master)
+  # ----------------------------------------------------------------------------
+  nexus-node-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus-node-1
+    command: ["6379", "1", "/nexus-data"]
+    ports:
+      - "6379:6379"
+      - "7379:7379"
+    volumes:
+      - nexus-data-1:/nexus-data
+    networks:
+      - nexus-net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Raft Node 2 (Follower)
+  # ----------------------------------------------------------------------------
+  nexus-node-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus-node-2
+    command: ["6380", "2", "/nexus-data"]
+    ports:
+      - "6380:6380"
+      - "7380:7380"
+    volumes:
+      - nexus-data-2:/nexus-data
+    networks:
+      - nexus-net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Raft Node 3 (Follower)
+  # ----------------------------------------------------------------------------
+  nexus-node-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus-node-3
+    command: ["6381", "3", "/nexus-data"]
+    ports:
+      - "6381:6381"
+      - "7381:7381"
+    volumes:
+      - nexus-data-3:/nexus-data
+    networks:
+      - nexus-net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Prometheus Time-Series Telemetry Collector
+  # ----------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexus-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - nexus-net
+    restart: unless-stopped
+
+  # ----------------------------------------------------------------------------
+  # Grafana Dashboard & Visualization Cockpit
+  # ----------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nexus-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./deploy/grafana-dashboard.json:/var/lib/grafana/dashboards/nexus.json:ro
+    networks:
+      - nexus-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  nexus-data-1:
+  nexus-data-2:
+  nexus-data-3:
+
+networks:
+  nexus-net:
+    driver: bridge

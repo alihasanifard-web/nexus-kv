@@ -16,11 +16,27 @@ use tokio::net::{TcpListener, TcpStream};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let port: u16 = args.get(1).and_then(|p| p.parse().ok()).unwrap_or(6379);
-    let node_id: u64 = args.get(2).and_then(|id| id.parse().ok()).unwrap_or(1);
-    let data_dir = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(format!("./data/node_{}", node_id)));
-    let requirepass = get_arg_str(&args, "--requirepass");
-    let telemetry_port = port + 1000;
+    let config_file = get_arg_str(&args, "--config").or_else(|| get_arg_str(&args, "-c"));
+    let cfg = config_file.as_deref().map(load_config_file).unwrap_or_default();
+
+    let port: u16 = args.get(1).and_then(|p| p.parse().ok())
+        .or_else(|| cfg.get("port").and_then(|p| p.parse().ok()))
+        .unwrap_or(6379);
+
+    let node_id: u64 = args.get(2).and_then(|id| id.parse().ok())
+        .or_else(|| cfg.get("node_id").and_then(|id| id.parse().ok()))
+        .unwrap_or(1);
+
+    let data_dir = args.get(3).map(PathBuf::from)
+        .or_else(|| cfg.get("data_dir").map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from(format!("./data/node_{}", node_id)));
+
+    let requirepass = get_arg_str(&args, "--requirepass")
+        .or_else(|| cfg.get("requirepass").cloned());
+
+    let telemetry_port = cfg.get("telemetry_port").and_then(|p| p.parse().ok()).unwrap_or(port + 1000);
+    let memtable_mb: usize = cfg.get("memtable_threshold_mb").and_then(|m| m.parse().ok()).unwrap_or(4);
+    let compaction_ssts: usize = cfg.get("compaction_threshold_ssts").and_then(|s| s.parse().ok()).unwrap_or(4);
 
     println!("\n  \x1B[1;37mNexusKV Server v0.1.0\x1B[0m \x1B[90m(x86_64-pc-windows-gnu)\x1B[0m");
     println!("  \x1B[90mDistributed Raft Consensus & LSM-Tree Engine\x1B[0m");
@@ -29,6 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Listen:     \x1B[36m0.0.0.0:{}\x1B[0m \x1B[90m(Redis RESP)\x1B[0m", port);
     println!("  • Telemetry:  \x1B[36m0.0.0.0:{}\x1B[0m \x1B[90m(HTTP REST / SSE)\x1B[0m", telemetry_port);
     println!("  • Storage:    \x1B[36m{}\x1B[0m", data_dir.display());
+    if let Some(ref cf) = config_file {
+        println!("  • Config:     \x1B[33m{}\x1B[0m", cf);
+    }
     if requirepass.is_some() {
         println!("  • Auth:       \x1B[32mEnabled (Password Protected)\x1B[0m");
     } else {
@@ -39,8 +58,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let lsm_config = LsmConfig {
         dir: data_dir,
-        memtable_threshold_bytes: 4 * 1024 * 1024,
-        compaction_threshold_ssts: 4,
+        memtable_threshold_bytes: memtable_mb * 1024 * 1024,
+        compaction_threshold_ssts: compaction_ssts,
     };
 
     let engine = Arc::new(NexusEngine::new(node_id, vec![], lsm_config)?);
@@ -210,6 +229,17 @@ async fn run_telemetry_http_server(port: u16, engine: Arc<NexusEngine>) -> Resul
                     json_data
                 );
                 let _ = socket.write_all(resp.as_bytes()).await;
+            } else if path == "/metrics" {
+                let term = engine.raft.state.read().current_term;
+                let mem_bytes = engine.storage.memtable.size();
+                let sst_count = engine.storage.sstables.read().len();
+                let metrics_data = nexus_kv::metrics::Metrics::render_prometheus(engine.raft.id, term, mem_bytes, sst_count);
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\n\r\n{}",
+                    metrics_data.len(),
+                    metrics_data
+                );
+                let _ = socket.write_all(resp.as_bytes()).await;
             } else if method == "POST" && (path == "/api/cmd" || path == "/cmd") {
                 let body = if let Some(idx) = req_str.find("\r\n\r\n") {
                     &req_str[idx + 4..]
@@ -287,4 +317,22 @@ fn get_arg_str(args: &[String], flag: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn load_config_file(path: &str) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    if let Ok(content) = std::fs::read_to_string(path) {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with(';') {
+                continue;
+            }
+            if let Some((k, v)) = line.split_once('=') {
+                let key = k.trim().to_lowercase();
+                let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+                map.insert(key, val);
+            }
+        }
+    }
+    map
 }
