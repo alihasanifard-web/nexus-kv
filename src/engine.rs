@@ -18,12 +18,15 @@ use std::time::{Duration, Instant};
 pub struct ClientSession {
     pub in_multi: bool,
     pub queue: Vec<Vec<RespValue>>,
+    pub authenticated: bool,
 }
 
 pub struct NexusEngine {
     pub storage: Arc<LsmEngine>,
     pub raft: Arc<RaftNode>,
     pub expirations: Arc<RwLock<HashMap<Vec<u8>, Instant>>>,
+    pub auth_password: Arc<RwLock<Option<String>>>,
+    pub start_time: Instant,
 }
 
 impl NexusEngine {
@@ -31,8 +34,15 @@ impl NexusEngine {
         let storage = Arc::new(LsmEngine::open(storage_config)?);
         let raft = Arc::new(RaftNode::new(node_id, peers));
         let expirations = Arc::new(RwLock::new(HashMap::new()));
+        let auth_password = Arc::new(RwLock::new(None));
+        let start_time = Instant::now();
 
-        Ok(Self { storage, raft, expirations })
+        Ok(Self { storage, raft, expirations, auth_password, start_time })
+    }
+
+    /// Configure authentication password
+    pub fn set_auth_password(&self, password: Option<String>) {
+        *self.auth_password.write() = password;
     }
 
     /// Set an expiration timeout for a key in seconds
@@ -100,6 +110,31 @@ impl NexusEngine {
             RespValue::SimpleString(s) => s.to_uppercase(),
             _ => return RespValue::Error("Invalid command format".to_string()),
         };
+
+        // Authentication enforcement
+        let req_pass = self.auth_password.read().clone();
+        if let Some(ref expected) = req_pass {
+            if !session.authenticated {
+                if cmd_name == "AUTH" {
+                    if cmd.len() < 2 {
+                        return RespValue::Error("ERR wrong number of arguments for 'auth' command".to_string());
+                    }
+                    let provided = match &cmd[1] {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        RespValue::SimpleString(s) => s.clone(),
+                        _ => return RespValue::Error("ERR invalid password format".to_string()),
+                    };
+                    if provided == *expected {
+                        session.authenticated = true;
+                        return RespValue::SimpleString("OK".to_string());
+                    } else {
+                        return RespValue::Error("ERR invalid password".to_string());
+                    }
+                } else if cmd_name != "PING" {
+                    return RespValue::Error("NOAUTH Authentication required.".to_string());
+                }
+            }
+        }
 
         match cmd_name.as_str() {
             "MULTI" => {
@@ -360,7 +395,10 @@ impl NexusEngine {
 
                 match self.storage.keys(&pattern) {
                     Ok(mut matched_keys) => {
-                        matched_keys.retain(|k| !self.is_expired(k));
+                        matched_keys.retain(|k| {
+                            let s = String::from_utf8_lossy(k);
+                            !self.is_expired(k) && (!s.starts_with("__set__:") || pattern.starts_with("__set__:"))
+                        });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         RespValue::Array(Some(elements))
                     }
@@ -380,7 +418,10 @@ impl NexusEngine {
 
                 match self.storage.keys(&pattern) {
                     Ok(mut matched_keys) => {
-                        matched_keys.retain(|k| !self.is_expired(k));
+                        matched_keys.retain(|k| {
+                            let s = String::from_utf8_lossy(k);
+                            !self.is_expired(k) && (!s.starts_with("__set__:") || pattern.starts_with("__set__:"))
+                        });
                         let elements = matched_keys.into_iter().map(|k| RespValue::BulkString(Some(k))).collect();
                         // Standard Redis SCAN format: [cursor, [keys...]]
                         RespValue::Array(Some(vec![
@@ -395,6 +436,177 @@ impl NexusEngine {
             "MULTI" => RespValue::SimpleString("OK".to_string()),
             "EXEC" => RespValue::Array(Some(vec![])),
             "DISCARD" => RespValue::SimpleString("OK".to_string()),
+
+            "AUTH" => {
+                let req_pass = self.auth_password.read().clone();
+                if let Some(ref expected) = req_pass {
+                    if cmd.len() < 2 {
+                        RespValue::Error("ERR wrong number of arguments for 'auth' command".to_string())
+                    } else {
+                        let provided = match &cmd[1] {
+                            RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                            RespValue::SimpleString(s) => s.clone(),
+                            _ => return RespValue::Error("ERR invalid password format".to_string()),
+                        };
+                        if provided == *expected {
+                            RespValue::SimpleString("OK".to_string())
+                        } else {
+                            RespValue::Error("ERR invalid password".to_string())
+                        }
+                    }
+                } else {
+                    RespValue::SimpleString("OK".to_string())
+                }
+            }
+
+            "INFO" => {
+                let uptime = self.start_time.elapsed().as_secs();
+                let term = self.raft.state.read().current_term;
+                let commit_idx = self.raft.state.read().commit_index;
+                let role = self.raft.state.read().role;
+                let role_str = match role {
+                    NodeRole::Leader => "master",
+                    NodeRole::Follower => "slave",
+                    NodeRole::Candidate => "candidate",
+                };
+                let mem_bytes = self.storage.memtable.size();
+                let sst_count = self.storage.sstables.read().len();
+                let total_ops = crate::metrics::Metrics::total_ops();
+                let write_ops = crate::metrics::Metrics::write_ops();
+                let read_ops = crate::metrics::Metrics::read_ops();
+
+                let mut s = String::new();
+                s.push_str("# Server\r\n");
+                s.push_str("nexus_version:0.1.0\r\n");
+                s.push_str("nexus_mode:distributed-raft\r\n");
+                s.push_str(&format!("node_id:{}\r\n", self.raft.id));
+                s.push_str("os:windows\r\n");
+                s.push_str("arch:x86_64\r\n");
+                s.push_str(&format!("uptime_in_seconds:{}\r\n", uptime));
+                s.push_str("\r\n# Clients\r\n");
+                s.push_str("connected_clients:1\r\n");
+                s.push_str("\r\n# Memory\r\n");
+                s.push_str(&format!("memtable_bytes:{}\r\n", mem_bytes));
+                s.push_str("\r\n# Persistence\r\n");
+                s.push_str("wal_status:active\r\n");
+                s.push_str(&format!("sstable_count:{}\r\n", sst_count));
+                s.push_str("\r\n# Replication\r\n");
+                s.push_str(&format!("role:{}\r\n", role_str));
+                s.push_str(&format!("connected_slaves:{}\r\n", self.raft.peers.len()));
+                s.push_str(&format!("raft_current_term:{}\r\n", term));
+                s.push_str(&format!("raft_commit_index:{}\r\n", commit_idx));
+                s.push_str("\r\n# Stats\r\n");
+                s.push_str(&format!("total_commands_processed:{}\r\n", total_ops));
+                s.push_str(&format!("total_writes:{}\r\n", write_ops));
+                s.push_str(&format!("total_reads:{}\r\n", read_ops));
+
+                RespValue::BulkString(Some(s.into_bytes()))
+            }
+
+            // Secondary Indexing & Set Operations
+            "SADD" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'sadd' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+
+                let mut added = 0;
+                for member_val in &cmd[2..] {
+                    let mem_str = match member_val {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => continue,
+                    };
+                    let internal_key = format!("__set__:{}:{}", key_str, mem_str).into_bytes();
+                    if self.storage.get(&internal_key).ok().flatten().is_none() {
+                        let _ = self.storage.put(&internal_key, b"1");
+                        added += 1;
+                    }
+                }
+                RespValue::Integer(added)
+            }
+
+            "SMEMBERS" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'smembers' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let prefix = format!("__set__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                match self.storage.keys(&pattern) {
+                    Ok(matched) => {
+                        let members: Vec<RespValue> = matched.into_iter().filter_map(|k| {
+                            let s = String::from_utf8_lossy(&k);
+                            if s.starts_with(&prefix) {
+                                Some(RespValue::BulkString(Some(s[prefix.len()..].as_bytes().to_vec())))
+                            } else {
+                                None
+                            }
+                        }).collect();
+                        RespValue::Array(Some(members))
+                    }
+                    Err(e) => RespValue::Error(format!("Storage error: {}", e)),
+                }
+            }
+
+            "SREM" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'srem' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mut removed = 0;
+                for member_val in &cmd[2..] {
+                    let mem_str = match member_val {
+                        RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                        _ => continue,
+                    };
+                    let internal_key = format!("__set__:{}:{}", key_str, mem_str).into_bytes();
+                    if self.storage.get(&internal_key).ok().flatten().is_some() {
+                        let _ = self.storage.delete(&internal_key);
+                        removed += 1;
+                    }
+                }
+                RespValue::Integer(removed)
+            }
+
+            "SISMEMBER" => {
+                if cmd.len() < 3 {
+                    return RespValue::Error("ERR wrong number of arguments for 'sismember' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let mem_str = match &cmd[2] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid member".to_string()),
+                };
+                let internal_key = format!("__set__:{}:{}", key_str, mem_str).into_bytes();
+                let exists = self.storage.get(&internal_key).ok().flatten().is_some();
+                RespValue::Integer(if exists { 1 } else { 0 })
+            }
+
+            "SCARD" => {
+                if cmd.len() < 2 {
+                    return RespValue::Error("ERR wrong number of arguments for 'scard' command".to_string());
+                }
+                let key_str = match &cmd[1] {
+                    RespValue::BulkString(Some(b)) => String::from_utf8_lossy(b).to_string(),
+                    _ => return RespValue::Error("Invalid key".to_string()),
+                };
+                let prefix = format!("__set__:{}:", key_str);
+                let pattern = format!("{}*", prefix);
+                let count = self.storage.keys(&pattern).map(|k| k.len()).unwrap_or(0);
+                RespValue::Integer(count as i64)
+            }
 
             "METRICS" => {
                 let term = self.raft.state.read().current_term;
@@ -539,5 +751,93 @@ mod tests {
                 RespValue::BulkString(Some(b"tx_v1".to_vec()))
             ]))
         );
+
+        // Test INFO command
+        let info_res = engine.execute_command(&[RespValue::BulkString(Some(b"INFO".to_vec()))]);
+        if let RespValue::BulkString(Some(b)) = info_res {
+            let s = String::from_utf8_lossy(&b);
+            assert!(s.contains("nexus_version:0.1.0"));
+            assert!(s.contains("# Replication"));
+            assert!(s.contains("role:master"));
+        } else {
+            panic!("Expected BulkString for INFO");
+        }
+
+        // Test Sets & Secondary Indexing (SADD / SMEMBERS / SREM / SCARD / SISMEMBER)
+        let sadd_res = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SADD".to_vec())),
+            RespValue::BulkString(Some(b"idx:tags".to_vec())),
+            RespValue::BulkString(Some(b"rust".to_vec())),
+            RespValue::BulkString(Some(b"database".to_vec())),
+            RespValue::BulkString(Some(b"raft".to_vec())),
+        ]);
+        assert_eq!(sadd_res, RespValue::Integer(3));
+
+        let sismember = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SISMEMBER".to_vec())),
+            RespValue::BulkString(Some(b"idx:tags".to_vec())),
+            RespValue::BulkString(Some(b"rust".to_vec())),
+        ]);
+        assert_eq!(sismember, RespValue::Integer(1));
+
+        let scard = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SCARD".to_vec())),
+            RespValue::BulkString(Some(b"idx:tags".to_vec())),
+        ]);
+        assert_eq!(scard, RespValue::Integer(3));
+
+        let smembers = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SMEMBERS".to_vec())),
+            RespValue::BulkString(Some(b"idx:tags".to_vec())),
+        ]);
+        if let RespValue::Array(Some(mems)) = smembers {
+            assert_eq!(mems.len(), 3);
+        } else {
+            panic!("Expected Array for SMEMBERS");
+        }
+
+        let srem = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SREM".to_vec())),
+            RespValue::BulkString(Some(b"idx:tags".to_vec())),
+            RespValue::BulkString(Some(b"database".to_vec())),
+        ]);
+        assert_eq!(srem, RespValue::Integer(1));
+
+        let scard_after = engine.execute_command(&[
+            RespValue::BulkString(Some(b"SCARD".to_vec())),
+            RespValue::BulkString(Some(b"idx:tags".to_vec())),
+        ]);
+        assert_eq!(scard_after, RespValue::Integer(2));
+
+        // Test AUTH Protection
+        engine.set_auth_password(Some("secret123".to_string()));
+        let mut unauth_session = ClientSession::default();
+
+        // Query before auth should fail with NOAUTH
+        let unauth_get = engine.execute_with_session(&mut unauth_session, &[
+            RespValue::BulkString(Some(b"GET".to_vec())),
+            RespValue::BulkString(Some(b"k1".to_vec())),
+        ]);
+        assert_eq!(unauth_get, RespValue::Error("NOAUTH Authentication required.".to_string()));
+
+        // Wrong password should fail
+        let wrong_auth = engine.execute_with_session(&mut unauth_session, &[
+            RespValue::BulkString(Some(b"AUTH".to_vec())),
+            RespValue::BulkString(Some(b"wrong".to_vec())),
+        ]);
+        assert_eq!(wrong_auth, RespValue::Error("ERR invalid password".to_string()));
+
+        // Correct password succeeds
+        let right_auth = engine.execute_with_session(&mut unauth_session, &[
+            RespValue::BulkString(Some(b"AUTH".to_vec())),
+            RespValue::BulkString(Some(b"secret123".to_vec())),
+        ]);
+        assert_eq!(right_auth, RespValue::SimpleString("OK".to_string()));
+
+        // Now queries succeed
+        let auth_get = engine.execute_with_session(&mut unauth_session, &[
+            RespValue::BulkString(Some(b"PING".to_vec())),
+        ]);
+        assert_eq!(auth_get, RespValue::SimpleString("PONG".to_string()));
     }
 }

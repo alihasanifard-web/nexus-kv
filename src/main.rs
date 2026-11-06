@@ -19,6 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port: u16 = args.get(1).and_then(|p| p.parse().ok()).unwrap_or(6379);
     let node_id: u64 = args.get(2).and_then(|id| id.parse().ok()).unwrap_or(1);
     let data_dir = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(format!("./data/node_{}", node_id)));
+    let requirepass = get_arg_str(&args, "--requirepass");
     let telemetry_port = port + 1000;
 
     println!("\n  \x1B[1;37mNexusKV Server v0.1.0\x1B[0m \x1B[90m(x86_64-pc-windows-gnu)\x1B[0m");
@@ -28,6 +29,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Listen:     \x1B[36m0.0.0.0:{}\x1B[0m \x1B[90m(Redis RESP)\x1B[0m", port);
     println!("  • Telemetry:  \x1B[36m0.0.0.0:{}\x1B[0m \x1B[90m(HTTP REST / SSE)\x1B[0m", telemetry_port);
     println!("  • Storage:    \x1B[36m{}\x1B[0m", data_dir.display());
+    if requirepass.is_some() {
+        println!("  • Auth:       \x1B[32mEnabled (Password Protected)\x1B[0m");
+    } else {
+        println!("  • Auth:       \x1B[90mDisabled (Standalone Open)\x1B[0m");
+    }
     println!("  • Architect:  \x1B[37mAli Hasanifard\x1B[0m");
     println!("  \x1B[90m--------------------------------------------\x1B[0m");
 
@@ -38,6 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let engine = Arc::new(NexusEngine::new(node_id, vec![], lsm_config)?);
+    if let Some(ref pass) = requirepass {
+        engine.set_auth_password(Some(pass.clone()));
+    }
     // In single node mode, become leader immediately
     engine.raft.become_leader();
 
@@ -217,4 +226,13 @@ fn get_telemetry_json(engine: &NexusEngine) -> String {
         "read_ops": read_ops,
         "peers_count": engine.raft.peers.len() + 1
     }).to_string()
+}
+
+fn get_arg_str(args: &[String], flag: &str) -> Option<String> {
+    for i in 0..args.len() {
+        if args[i] == flag && i + 1 < args.len() {
+            return Some(args[i + 1].clone());
+        }
+    }
+    None
 }
